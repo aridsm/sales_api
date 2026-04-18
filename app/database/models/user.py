@@ -14,6 +14,7 @@ class User(SQLModel, table=True):
     email: str = Field(max_length=255, unique=True, nullable=False, index=True)
     password_hash: str = Field(max_length=255, nullable=False)
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    updated_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
 
-    def __repr__(self):
-        return f"<User(id={self.id}, email={self.email}, name={self.name})>"
+    # def __repr__(self):
+    #     return f"<User(id={self.id}, email={self.email}, name={self.name})>"

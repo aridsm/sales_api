@@ -1,5 +1,7 @@
 # Alembic Configuration
 from logging.config import fileConfig
+import os
+import sys
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -9,7 +11,7 @@ import asyncio
 from app.config import settings
 from sqlmodel import SQLModel
 
-# sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 
 config = context.config

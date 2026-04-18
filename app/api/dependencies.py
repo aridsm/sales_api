@@ -9,6 +9,9 @@ from app.database.redis import redis_db
 from app.database.engine import get_session
 from app.database.models.user import User
 from app.services.user import UserService
+from app.services.product import ProductService
+from app.services.other_expense import OtherExpenseService
+from app.services.category import CategoryService
 
 security = HTTPBearer()
 
@@ -57,6 +60,23 @@ def get_user_service(session: SessionDependency):
     return UserService(session)
 
 
+def get_product_service(session: SessionDependency):
+    return ProductService(session)
+
+
+def get_other_expense_service(session: SessionDependency):
+    return OtherExpenseService(session)
+
+
+def get_category_service(session: SessionDependency):
+    return CategoryService(session)
+
+
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
+ProductServiceDep = Annotated[ProductService, Depends(get_product_service)]
+OtherExpenseServiceDep = Annotated[
+    OtherExpenseService, Depends(get_other_expense_service)
+]
+CategoryServiceDep = Annotated[CategoryService, Depends(get_category_service)]
 UserLoggedDep = Annotated[User, Depends(get_user_logged)]
 TokenDep = Annotated[TokenPayload, Depends(get_bearer_token)]
