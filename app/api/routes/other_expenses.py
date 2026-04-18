@@ -7,11 +7,12 @@ from app.api.schemas.other_expense import (
     OtherExpenseUpdate,
 )
 from app.api.dependencies import UserLoggedDep, OtherExpenseServiceDep
+from app.api.utils.paginated_response import PaginatedResponse
 
 router = APIRouter(prefix="/other_expenses", tags=["other_expenses"])
 
 
-@router.get("/", response_model=list[OtherExpenseResponse])
+@router.get("/", response_model=PaginatedResponse[OtherExpenseResponse])
 async def get_all_other_expenses(
     user: UserLoggedDep,
     service: OtherExpenseServiceDep,
@@ -21,7 +22,7 @@ async def get_all_other_expenses(
     result = await service.get_all_for_user(
         user_id=str(user.id), page=page, page_size=page_size
     )
-    return result.items
+    return result
 
 
 @router.get("/{expense_id}", response_model=OtherExpenseResponse)

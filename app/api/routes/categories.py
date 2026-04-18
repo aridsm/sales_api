@@ -7,11 +7,12 @@ from app.api.schemas.category import (
     CategoryUpdate,
 )
 from app.api.dependencies import UserLoggedDep, CategoryServiceDep
+from app.api.utils.paginated_response import PaginatedResponse
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 
 
-@router.get("/", response_model=list[CategoryResponse])
+@router.get("/", response_model=PaginatedResponse[CategoryResponse])
 async def get_all_categories(
     user: UserLoggedDep,
     service: CategoryServiceDep,
@@ -21,7 +22,7 @@ async def get_all_categories(
     result = await service.get_all_for_user(
         user_id=str(user.id), page=page, page_size=page_size
     )
-    return result.items
+    return result
 
 
 @router.get("/{category_id}", response_model=CategoryResponse)

@@ -1,5 +1,5 @@
 from typing import Annotated
-from uuid import UUID
+import uuid
 
 from fastapi import APIRouter, Depends, status
 from app.api.schemas.product import (
@@ -11,11 +11,12 @@ from app.api.dependencies import (
     UserLoggedDep,
     ProductServiceDep,
 )
+from app.api.utils.paginated_response import PaginatedResponse
 
 router = APIRouter(prefix="/products", tags=["products"])
 
 
-@router.get("/", response_model=list[ProductResponse])
+@router.get("/", response_model=PaginatedResponse[ProductResponse])
 async def get_all_products(
     user: UserLoggedDep,
     service: ProductServiceDep,
@@ -25,12 +26,12 @@ async def get_all_products(
     result = await service.get_all_for_user(
         user_id=user.id, page=page, page_size=page_size
     )
-    return result.items
+    return result
 
 
 @router.get("/{product_id}", response_model=ProductResponse)
 async def get_product_by_id(
-    product_id: UUID,
+    product_id: uuid.UUID,
     user: UserLoggedDep,
     service: ProductServiceDep,
 ):
@@ -48,7 +49,7 @@ async def create_product(
 
 @router.patch("/{product_id}", response_model=ProductResponse)
 async def update_product(
-    product_id: UUID,
+    product_id: uuid.UUID,
     body: ProductUpdate,
     user: UserLoggedDep,
     service: ProductServiceDep,
@@ -58,7 +59,7 @@ async def update_product(
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_product(
-    product_id: UUID,
+    product_id: uuid.UUID,
     user: UserLoggedDep,
     service: ProductServiceDep,
 ):
