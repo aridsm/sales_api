@@ -5,6 +5,7 @@ from app.api.schemas.category import (
     CategoryCreate,
     CategoryResponse,
     CategoryUpdate,
+    CategoryBulkDelete,
 )
 from app.api.dependencies import UserLoggedDep, CategoryServiceDep
 from app.api.utils.paginated_response import PaginatedResponse
@@ -51,6 +52,15 @@ async def update_category(
     service: CategoryServiceDep,
 ):
     return await service.update_for_user(str(category_id), body, str(user.id))
+
+
+@router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_bulk_categories(
+    body: CategoryBulkDelete,
+    user: UserLoggedDep,
+    service: CategoryServiceDep,
+):
+    await service.delete_bulk_for_user(body.ids, str(user.id))
 
 
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)

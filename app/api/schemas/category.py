@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 from uuid import UUID
-from typing import Optional
+from typing import List, Optional
 from app.enums.category import CategoryType
 
 
@@ -25,3 +25,7 @@ class CategoryResponse(CategoryBase):
     id: UUID
     user_id: UUID
     created_at: datetime
+
+
+class CategoryBulkDelete(BaseModel):
+    ids: List[str]

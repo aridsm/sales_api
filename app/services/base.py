@@ -1,5 +1,5 @@
 from math import ceil
-from typing import TypeVar, Generic, Type, Optional
+from typing import TypeVar, Generic, Type, Optional, Any
 import uuid
 from fastapi import HTTPException
 from sqlalchemy import Select
@@ -47,7 +47,7 @@ class BaseService(Generic[T]):
             total_pages=ceil(total_items / page_size),
         )
 
-    async def get_by_id(self, id: uuid.UUID) -> Optional[T]:
+    async def get_by_id(self, id: uuid.UUID) -> T:
         query = select(self.model).where(self.model.id == id)
         item = (await self.session.execute(query)).scalar_one_or_none()
         if item is None:
@@ -60,10 +60,13 @@ class BaseService(Generic[T]):
         await self.session.refresh(item)
         return item
 
-    async def update(self, id: uuid.UUID, diff: dict) -> Optional[T]:
+    async def update(self, id: uuid.UUID, diff: Any) -> Optional[T]:
         item_db = await self.get_by_id(id)
 
-        body = diff.model_dump(exclude_unset=True)
+        if isinstance(diff, dict):
+            body = diff
+        else:
+            body = diff.model_dump(exclude_unset=True)
         for key, value in body.items():
             setattr(item_db, key, value)
 

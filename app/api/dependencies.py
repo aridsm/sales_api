@@ -4,6 +4,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
+from app.api.schemas.user import UserResponse
 from app.api.tokens import TokenPayload, decode_jwt_token
 from app.database.redis import redis_db
 from app.database.engine import get_session
@@ -42,7 +43,7 @@ async def get_bearer_token(
     return token_payload
 
 
-async def get_user_logged(session: SessionDependency, token_payload: "TokenDep"):
+async def get_user_logged(session: SessionDependency, token_payload: "TokenDep") -> UserResponse:
     res = await session.execute(select(User).where(User.id == token_payload.user_id))
 
     user = res.scalars().one_or_none()
@@ -53,7 +54,7 @@ async def get_user_logged(session: SessionDependency, token_payload: "TokenDep")
             detail="errorUserNotFound",
         )
 
-    return user
+    return UserResponse(**user.model_dump())
 
 
 def get_user_service(session: SessionDependency):
@@ -78,5 +79,5 @@ OtherExpenseServiceDep = Annotated[
     OtherExpenseService, Depends(get_other_expense_service)
 ]
 CategoryServiceDep = Annotated[CategoryService, Depends(get_category_service)]
-UserLoggedDep = Annotated[User, Depends(get_user_logged)]
+UserLoggedDep = Annotated[UserResponse, Depends(get_user_logged)]
 TokenDep = Annotated[TokenPayload, Depends(get_bearer_token)]

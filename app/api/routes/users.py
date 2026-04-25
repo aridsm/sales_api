@@ -44,7 +44,7 @@ async def refresh_token(
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_me(user: UserLoggedDep, service: UserServiceDep):
-    return await service.delete(user.id)
+    await service.delete(user.id)
 
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
