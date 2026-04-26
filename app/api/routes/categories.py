@@ -1,5 +1,7 @@
+from typing import List
 from uuid import UUID
-from fastapi import APIRouter, status
+from app.enums.category import CategoryType
+from fastapi import APIRouter, status, Query
 
 from app.api.schemas.category import (
     CategoryCreate,
@@ -19,9 +21,17 @@ async def get_all_categories(
     service: CategoryServiceDep,
     page: int = 1,
     page_size: int = 20,
+    search: str | None = None,
+    sort: str | None = None,
+    type: List[CategoryType] | None = Query(None),
 ):
     result = await service.get_all_for_user(
-        user_id=str(user.id), page=page, page_size=page_size
+        user_id=str(user.id),
+        page=page,
+        page_size=page_size,
+        search=search,
+        sort=sort,
+        type=type,
     )
     return result
 

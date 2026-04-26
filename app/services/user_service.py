@@ -10,6 +10,7 @@ from app.services.base import BaseService
 class UserOwnedModel(Protocol):
     id: Any
     user_id: Any
+    name: Any
 
 
 T = TypeVar("T", bound=UserOwnedModel)
@@ -27,8 +28,31 @@ class UserOwnedService(BaseService[T], Generic[T, CreateSchema, UpdateSchema]):
         page_size: int = 20,
         page: int = 1,
         get_all=False,
+        search: str | None = None,
+        sort: str | None = None,
+        **kwargs,
     ):
         query = select(self.model).where(self.model.user_id == user_id)
+
+        if search:
+            query = query.where(self.model.name.ilike(f"%{search}%"))
+
+        for key, value in kwargs.items():
+            if value is not None:
+                field = getattr(self.model, key, None)
+                if field:
+                    if isinstance(value, list) and len(value) > 0:
+                        query = query.where(field.in_(value))
+                    elif not isinstance(value, list):
+                        query = query.where(field == value)
+
+        if sort:
+            field_name = sort.lstrip("-")
+            descending = sort.startswith("-")
+            field = getattr(self.model, field_name, None)
+            if field:
+                query = query.order_by(field.desc() if descending else field.asc())
+
         return await self.get_all(
             query=query, page_size=page_size, page=page, get_all=get_all
         )

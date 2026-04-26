@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import uuid
 
 import bcrypt
 from fastapi import HTTPException, status
@@ -6,7 +7,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.schemas.user import TokenResponse, UserCreate, UserLogin
-from app.api.tokens import TokenPayload, create_access_token
+from app.api.tokens import TokenPayload, create_access_token, decode_jwt_token
 from app.services.base import BaseService
 from app.database.models.user import User
 from app.config import settings
@@ -56,10 +57,10 @@ class UserService(BaseService[User]):
         )
 
     async def logout(self, token: TokenPayload):
-        await redis_db.blacklist_token(token)
+        await redis_db.add_token_to_blacklist(token.jti)
 
     async def refresh_token(self, refresh_token: str) -> TokenResponse:
-        token_payload = redis_db.decode_refresh_token(refresh_token)
+        token_payload = decode_jwt_token(refresh_token)
 
         if await redis_db.is_token_blacklisted(token_payload.jti):
             raise HTTPException(
@@ -67,7 +68,7 @@ class UserService(BaseService[User]):
                 detail="errorInvalidRefreshToken",
             )
 
-        user = await self.get_by_id(token_payload.user_id)
+        user = await self.get_by_id(uuid.UUID(token_payload.user_id))
 
         if user is None:
             raise HTTPException(

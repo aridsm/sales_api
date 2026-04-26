@@ -34,7 +34,7 @@ async def get_me(user: UserLoggedDep):
     return user
 
 
-@router.post("/refresh_token", response_model=dict)
+@router.post("/refresh_token", response_model=TokenResponse)
 async def refresh_token(
     body: RefreshToken,
     service: UserServiceDep,
