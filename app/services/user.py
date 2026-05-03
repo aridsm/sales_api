@@ -14,9 +14,9 @@ from app.config import settings
 from app.database.redis import redis_db
 
 
-class UserService(BaseService[User]):
+class UserService:
     def __init__(self, session: AsyncSession):
-        super().__init__(User, session)
+        self.session = session
 
     async def signup(self, body: UserCreate) -> User:
         existing_user = await self.get_by_email(body.email)
@@ -27,7 +27,11 @@ class UserService(BaseService[User]):
             )
 
         password_hash = self.hash_password(body.password)
-        return await self.create(User(**body.__dict__, password_hash=password_hash))
+        user = User(**body.model_dump(), password_hash=password_hash)
+        self.session.add(user)
+        await self.session.commit()
+        await self.session.refresh(user)
+        return user
 
     async def login(self, body: OAuth2PasswordRequestForm) -> TokenResponse:
         user = await self.get_by_email(body.username)
@@ -95,9 +99,23 @@ class UserService(BaseService[User]):
             + (timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)),
         )
 
-    async def get_by_email(self, email: str) -> User | None:
-        query = select(self.model).where(self.model.email == email)
+    async def get_by_id(self, id: uuid.UUID) -> User | None:
+        query = select(User).where(User.id == id)
         return (await self.session.execute(query)).scalar_one_or_none()
+
+    async def get_by_email(self, email: str) -> User | None:
+        query = select(User).where(User.email == email)
+        return (await self.session.execute(query)).scalar_one_or_none()
+
+    async def delete(self, id: uuid.UUID):
+        user = await self.get_by_id(id)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="errorUserNotFound",
+            )
+        await self.session.delete(user)
+        await self.session.commit()
 
     @staticmethod
     def hash_password(password: str) -> str:

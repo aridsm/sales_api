@@ -1,13 +1,13 @@
 from datetime import datetime
+from pydantic import ConfigDict
 from sqlmodel import SQLModel, Field
 import uuid
 from app.enums.category import CategoryType
 
 
 class Category(SQLModel, table=True):
-    """Category model"""
-
     __tablename__ = "categories"
+    __sorts__ = ["created_at", "id", "name", "type"]
 
     id: uuid.UUID | None = Field(default_factory=uuid.uuid4, primary_key=True)
     name: str = Field(max_length=255, nullable=False)
@@ -16,5 +16,10 @@ class Category(SQLModel, table=True):
     user_id: uuid.UUID = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
 
-    # def __repr__(self):
-    #     return f"<Category(id={self.id}, name={self.name}, type={self.type})>"
+    @property
+    def products(self) -> int:
+        return getattr(self, "_products_value", 0)
+    
+    @products.setter
+    def products(self, value: int):
+        object.__setattr__(self, "_products_value", value)

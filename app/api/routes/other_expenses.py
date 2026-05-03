@@ -19,7 +19,7 @@ async def get_all_other_expenses(
     page: int = 1,
     page_size: int = 20,
 ):
-    result = await service.get_all_for_user(
+    result = await service.get_all(
         user_id=str(user.id), page=page, page_size=page_size
     )
     return result

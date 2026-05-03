@@ -25,7 +25,8 @@ class CategoryResponse(CategoryBase):
     id: UUID
     user_id: UUID
     created_at: datetime
+    products: int = 0
 
 
 class CategoryBulkDelete(BaseModel):
-    ids: List[str]
+    ids: list[UUID]

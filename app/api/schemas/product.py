@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 from uuid import UUID
-from typing import Optional
+from typing import List, Optional
 
 
 class ProductBase(BaseModel):
@@ -28,3 +28,6 @@ class ProductResponse(ProductBase):
     id: UUID
     user_id: UUID
     created_at: datetime
+
+class ProductBulkDelete(BaseModel):
+    ids: list[UUID]
