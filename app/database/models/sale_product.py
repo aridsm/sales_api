@@ -1,0 +1,15 @@
+from datetime import datetime
+from sqlmodel import SQLModel, Field
+import uuid
+
+
+class SaleProduct(SQLModel, table=True):
+    __tablename__ = "sale_products"
+
+    id: uuid.UUID | None = Field(default_factory=uuid.uuid4, primary_key=True)
+    sale_id: uuid.UUID = Field(foreign_key="sales.id", nullable=False)
+    product_id: uuid.UUID = Field(foreign_key="products.id", nullable=False)
+    user_id: uuid.UUID = Field(foreign_key="users.id", nullable=False)
+    quantity: int = Field(nullable=False)
+    unit_price: float = Field(nullable=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)

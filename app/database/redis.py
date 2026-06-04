@@ -12,7 +12,7 @@ class RedisClient:
         )
 
     async def add_token_to_blacklist(self, jti: str) -> None:
-        await self.redis(jti, "")
+        await self.redis.set(jti, "")
 
     async def is_token_blacklisted(self, jti: str) -> bool:
         return await self.redis.exists(jti)

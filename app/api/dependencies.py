@@ -13,6 +13,8 @@ from app.services.user import UserService
 from app.services.product import ProductService
 from app.services.other_expense import OtherExpenseService
 from app.services.category import CategoryService
+from app.services.sale import SaleService
+from app.services.sale_product import SaleProductService
 
 security = HTTPBearer()
 
@@ -73,11 +75,21 @@ def get_category_service(session: SessionDependency):
     return CategoryService(session)
 
 
+def get_sale_service(session: SessionDependency):
+    return SaleService(session)
+
+
+def get_sale_product_service(session: SessionDependency):
+    return SaleProductService(session)
+
+
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
 ProductServiceDep = Annotated[ProductService, Depends(get_product_service)]
 OtherExpenseServiceDep = Annotated[
     OtherExpenseService, Depends(get_other_expense_service)
 ]
 CategoryServiceDep = Annotated[CategoryService, Depends(get_category_service)]
+SaleServiceDep = Annotated[SaleService, Depends(get_sale_service)]
+SaleProductServiceDep = Annotated[SaleProductService, Depends(get_sale_product_service)]
 UserLoggedDep = Annotated[UserResponse, Depends(get_user_logged)]
 TokenDep = Annotated[TokenPayload, Depends(get_bearer_token)]

@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, status, Query
+from sqlmodel import select
 from app.api.schemas.product import (
     ProductBulkDelete,
     ProductCreate,
@@ -12,6 +13,7 @@ from app.api.dependencies import (
     ProductServiceDep,
 )
 from app.api.utils.paginated_response import PaginatedResponse
+from app.database.models.category import Category
 from app.database.models.product import Product
 
 router = APIRouter(prefix="/products", tags=["products"])
@@ -29,12 +31,19 @@ async def get_all_products(
         category_id = [c for c in category_id if c]
         if not category_id:
             category_id = None
-            
+
+    query = select(
+        Product,
+        Category.name.label("category_name"),
+        Category.color.label("category_color"),
+    ).outerjoin(Category, Product.category_id == Category.id)
+
     result = await service.get_all(
-        user_id=str(user.id), 
-        page=page, 
-        page_size=page_size, 
-        category_id=category_id
+        query=query,
+        user_id=str(user.id),
+        page=page,
+        page_size=page_size,
+        category_id=category_id,
     )
     return result
 
@@ -65,6 +74,7 @@ async def update_product(
     service: ProductServiceDep,
 ):
     return await service.update(product_id, body, user.id)
+
 
 @router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_bulk_categories(

@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
@@ -9,7 +9,7 @@ class OtherExpenseBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=1024)
     value: float = Field(..., gt=0)
-    date: date
+    date: datetime
     category_id: UUID
 
 
@@ -21,11 +21,17 @@ class OtherExpenseUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=1024)
     value: Optional[float] = Field(None, gt=0)
-    date: Optional[date] = None
-    category_id: Optional[UUID] = None
+    date: Optional[datetime] = Field(None)
+    category_id: Optional[UUID] = Field(None)
 
 
 class OtherExpenseResponse(OtherExpenseBase):
     id: UUID
     user_id: UUID
     created_at: datetime
+    category_name: Optional[str] = None
+    category_color: Optional[str] = None
+
+
+class OtherExpenseBulkDelete(BaseModel):
+    ids: list[UUID]

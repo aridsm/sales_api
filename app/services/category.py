@@ -16,4 +16,3 @@ class CategoryService(BaseService[Category]):
             .where(Category.user_id == user_id)
             .group_by(Category.id)
         )
-
