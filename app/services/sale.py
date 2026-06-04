@@ -41,6 +41,18 @@ class SaleService(BaseService[Sale]):
             query = self._get_base_query(user_id=user_id).where(Sale.id == id)
         return await super().get_by_id(id, user_id=user_id, query=query)
 
+    async def get_sale_with_details(self, sale_id: uuid.UUID, user_id: str) -> dict:
+        query = self._get_base_query(user_id=user_id).where(Sale.id == sale_id)
+        res = await self.session.execute(query)
+        row = res.mappings().first()
+        if not row:
+            raise HTTPException(status_code=404, detail="errorEntityNotFound")
+        
+        sale_obj = row["Sale"]
+        sale_dict = sale_obj.model_dump() if hasattr(sale_obj, "model_dump") else sale_obj.dict()
+        sale_dict["items_count"] = row.get("items_count", 0)
+        return sale_dict
+
     async def create_sale_with_products(
         self, items: list[SaleProductItem], user_id: uuid.UUID
     ) -> Sale:

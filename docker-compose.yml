@@ -6,6 +6,7 @@ services:
       - ./app:/code/app
       - ./migrations:/code/migrations
       - ./alembic.ini:/code/alembic.ini
+      - ./tests:/code/tests
     ports:
       - "8000:8000"
     depends_on:
@@ -32,6 +33,21 @@ services:
       - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  database_test:
+    image: postgres:16-alpine
+    container_name: sales_api_postgres_test
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_TEST_NAME:-sales_api_test}
+    ports:
+      - "${DB_TEST_PORT:-5433}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
       interval: 10s
