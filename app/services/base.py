@@ -138,7 +138,7 @@ class BaseService(Generic[T]):
         row = res.first()
 
         if row is None:
-            raise HTTPException(status_code=404, detail="errorEntityNotFound")
+            raise HTTPException(status_code=404, detail={"error": "errorEntityNotFound"})
 
         return row[0]
 

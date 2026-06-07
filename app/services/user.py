@@ -23,7 +23,7 @@ class UserService:
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="errorEmailAlreadyRegistered",
+                detail={"error": "errorEmailAlreadyRegistered"},
             )
 
         password_hash = self.hash_password(body.password)
@@ -38,7 +38,7 @@ class UserService:
         if not user or not self.verify_password(body.password, user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="errorInvalidCredentials",
+                detail={"error": "errorInvalidCredentials"},
             )
 
         access_token = create_access_token(
@@ -69,7 +69,7 @@ class UserService:
         if await redis_db.is_token_blacklisted(token_payload.jti):
             raise HTTPException(
                 status_code=status.HTTP_406_NOT_ACCEPTABLE,
-                detail="errorInvalidRefreshToken",
+                detail={"error": "errorInvalidRefreshToken"},
             )
 
         user = await self.get_by_id(uuid.UUID(token_payload.user_id))
@@ -77,7 +77,7 @@ class UserService:
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="errorUserNotFound",
+                detail={"error": "errorUserNotFound"},
             )
 
         new_access_token = create_access_token(
@@ -112,7 +112,7 @@ class UserService:
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="errorUserNotFound",
+                detail={"error": "errorUserNotFound"},
             )
         await self.session.delete(user)
         await self.session.commit()

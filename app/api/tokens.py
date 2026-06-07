@@ -57,10 +57,10 @@ def decode_jwt_token(jwt_token: str) -> TokenPayload:
     except ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="errorExpiredToken",
+            detail={"error": "errorExpiredToken"},
         )
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="errorInvalidToken",
+            detail={"error": "errorInvalidToken"},
         )

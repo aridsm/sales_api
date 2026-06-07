@@ -46,7 +46,7 @@ class SaleService(BaseService[Sale]):
         res = await self.session.execute(query)
         row = res.mappings().first()
         if not row:
-            raise HTTPException(status_code=404, detail="errorEntityNotFound")
+            raise HTTPException(status_code=404, detail={"error": "errorEntityNotFound"})
         
         sale_obj = row["Sale"]
         sale_dict = sale_obj.model_dump() if hasattr(sale_obj, "model_dump") else sale_obj.dict()
@@ -74,7 +74,7 @@ class SaleService(BaseService[Sale]):
 
         for pid in product_ids:
             if pid not in products:
-                raise HTTPException(status_code=404, detail="errorEntityNotFound")
+                raise HTTPException(status_code=404, detail={"error": "errorEntityNotFound"})
 
         for pid, qty in product_quantities.items():
             product = products[pid]
@@ -119,7 +119,7 @@ class SaleService(BaseService[Sale]):
         sale = await self.get_by_id(sale_id, user_id=user_id)
 
         if sale.status == SaleStatus.CANCELED:
-            raise HTTPException(status_code=400, detail="errorSaleAlreadyCanceled")
+            raise HTTPException(status_code=400, detail={"error": "errorSaleAlreadyCanceled"})
 
         result = await self.session.execute(
             select(SaleProduct).where(SaleProduct.sale_id == sale_id)

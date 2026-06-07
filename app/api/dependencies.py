@@ -30,7 +30,7 @@ async def get_bearer_token(
     if await redis_db.is_token_blacklisted(token_payload.jti):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="errorInvalidToken",
+            detail={"error": "errorInvalidToken"},
         )
 
     res = await session.execute(select(User).where(User.id == token_payload.user_id))
@@ -39,7 +39,7 @@ async def get_bearer_token(
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="errorUserNotFound",
+            detail={"error": "errorUserNotFound"},
         )
 
     return token_payload
@@ -53,7 +53,7 @@ async def get_user_logged(session: SessionDependency, token_payload: "TokenDep")
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="errorUserNotFound",
+            detail={"error": "errorUserNotFound"},
         )
 
     return UserResponse(**user.model_dump())
