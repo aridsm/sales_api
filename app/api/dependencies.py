@@ -12,6 +12,7 @@ from app.database.models.user import User
 from app.services.user import UserService
 from app.services.product import ProductService
 from app.services.other_expense import OtherExpenseService
+from app.services.history import HistoryService
 from app.services.category import CategoryService
 from app.services.sale import SaleService
 from app.services.sale_product import SaleProductService
@@ -70,6 +71,9 @@ def get_product_service(session: SessionDependency):
 def get_other_expense_service(session: SessionDependency):
     return OtherExpenseService(session)
 
+def get_history_service(session: SessionDependency):
+    return HistoryService(session)
+
 
 def get_category_service(session: SessionDependency):
     return CategoryService(session)
@@ -88,6 +92,7 @@ ProductServiceDep = Annotated[ProductService, Depends(get_product_service)]
 OtherExpenseServiceDep = Annotated[
     OtherExpenseService, Depends(get_other_expense_service)
 ]
+HistoryServiceDep = Annotated[HistoryService, Depends(get_history_service)]
 CategoryServiceDep = Annotated[CategoryService, Depends(get_category_service)]
 SaleServiceDep = Annotated[SaleService, Depends(get_sale_service)]
 SaleProductServiceDep = Annotated[SaleProductService, Depends(get_sale_product_service)]

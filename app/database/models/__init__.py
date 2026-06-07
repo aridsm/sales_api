@@ -4,3 +4,4 @@ from .other_expense import OtherExpense
 from .category import Category
 from .sale import Sale
 from .sale_product import SaleProduct
+from .history import History

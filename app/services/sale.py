@@ -10,11 +10,14 @@ from app.api.schemas.sale import SaleProductItem
 from app.enums.sale import SaleStatus
 from sqlalchemy import Select, func
 from typing import Any
+from app.services.history import HistoryService
+from app.enums.history import ActionType, EntityType
 
 
 class SaleService(BaseService[Sale]):
     def __init__(self, session: AsyncSession):
         super().__init__(Sale, session)
+        self.history = HistoryService(session)
 
     def _get_base_query(self, user_id: str) -> Select:
         return (
@@ -110,6 +113,15 @@ class SaleService(BaseService[Sale]):
             product.stock_amount -= qty
             product.sold_amount += qty
 
+        self.history.log_action(
+            user_id=user_id,
+            action_type=ActionType.CREATE,
+            entity_type=EntityType.SALE,
+            entity_id=sale.id,
+            description=f"Venda #{sale.code} registrada no valor de R$ {f'{total:.2f}'.replace('.', ',')}.",
+            details={"total": total, "items_count": len(product_ids)}
+        )
+
         await self.session.commit()
         await self.session.refresh(sale)
 
@@ -139,6 +151,14 @@ class SaleService(BaseService[Sale]):
             product.sold_amount -= sp.quantity
 
         sale.status = SaleStatus.CANCELED
+
+        self.history.log_action(
+            user_id=user_id,
+            action_type=ActionType.CANCEL,
+            entity_type=EntityType.SALE,
+            entity_id=sale.id,
+            description=f"Venda #{sale.code} (R$ {f'{sale.total:.2f}'.replace('.', ',')}) cancelada."
+        )
 
         await self.session.commit()
         await self.session.refresh(sale)

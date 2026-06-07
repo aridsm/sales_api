@@ -6,11 +6,39 @@ from app.database.models.product import Product
 from app.database.models.other_expense import OtherExpense
 import uuid
 from fastapi import HTTPException
+from typing import Any
+from app.services.history import HistoryService
+from app.enums.history import ActionType, EntityType
 
 
 class CategoryService(BaseService[Category]):
     def __init__(self, session: AsyncSession):
         super().__init__(Category, session)
+        self.history = HistoryService(session)
+
+    async def create(self, item: Category, user_id: uuid.UUID | None = None) -> Category:
+        new_item = await super().create(item, user_id)
+        self.history.log_action(
+            user_id=user_id,
+            action_type=ActionType.CREATE,
+            entity_type=EntityType.CATEGORY,
+            entity_id=new_item.id,
+            description=f"Categoria '{new_item.name}' criada."
+        )
+        await self.session.commit()
+        return new_item
+
+    async def update(self, id: uuid.UUID, diff: Any, user_id: uuid.UUID | None = None):
+        updated_item = await super().update(id, diff, user_id)
+        self.history.log_action(
+            user_id=user_id,
+            action_type=ActionType.UPDATE,
+            entity_type=EntityType.CATEGORY,
+            entity_id=updated_item.id,
+            description=f"Categoria '{updated_item.name}' atualizada."
+        )
+        await self.session.commit()
+        return updated_item
 
     def get_base_query_with_count(self, user_id: str):
         return (
@@ -49,6 +77,15 @@ class CategoryService(BaseService[Category]):
         if expense_category_name is not None:
             raise HTTPException(status_code=400, detail={"error": "errorHasExpenses"})
 
+        item_db = await self.get_by_id(id, user_id=user_id)
+        self.history.log_action(
+            user_id=user_id,
+            action_type=ActionType.DELETE,
+            entity_type=EntityType.CATEGORY,
+            entity_id=id,
+            description=f"Categoria '{item_db.name}' excluída."
+        )
+
         await super().delete(id, user_id)
 
     async def delete_bulk(
@@ -85,7 +122,20 @@ class CategoryService(BaseService[Category]):
         if expense_category_names:
             raise HTTPException(
                 status_code=400,
-                detail={"error": "errorHasExpenses", "name": expense_category_names},
+                detail={"error": "errorHasExpenses", "categories": expense_category_names},
             )
+
+        query_names = select(Category.name).where(Category.id.in_(ids))
+        if user_id:
+            query_names = query_names.where(Category.user_id == user_id)
+        result_names = await self.session.execute(query_names)
+        deleted_names = ", ".join(result_names.scalars().all())
+
+        self.history.log_action(
+            user_id=user_id,
+            action_type=ActionType.DELETE,
+            entity_type=EntityType.CATEGORY,
+            description=f"Múltiplas categorias excluídas: {deleted_names}."
+        )
 
         await super().delete_bulk(ids, user_id)
