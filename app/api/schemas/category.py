@@ -30,3 +30,10 @@ class CategoryResponse(CategoryBase):
 
 class CategoryBulkDelete(BaseModel):
     ids: list[UUID]
+
+
+class CategoryAmountResponse(BaseModel):
+    category_id: str
+    category_name: str
+    category_color: Optional[str] = None
+    value: float

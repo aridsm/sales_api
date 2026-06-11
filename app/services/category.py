@@ -4,6 +4,9 @@ from app.services.base import BaseService
 from app.database.models.category import Category
 from app.database.models.product import Product
 from app.database.models.other_expense import OtherExpense
+from app.database.models.sale_product import SaleProduct
+from app.database.models.sale import Sale
+from app.enums.sale import SaleStatus
 import uuid
 from fastapi import HTTPException
 from typing import Any
@@ -16,14 +19,16 @@ class CategoryService(BaseService[Category]):
         super().__init__(Category, session)
         self.history = HistoryService(session)
 
-    async def create(self, item: Category, user_id: uuid.UUID | None = None) -> Category:
+    async def create(
+        self, item: Category, user_id: uuid.UUID | None = None
+    ) -> Category:
         new_item = await super().create(item, user_id)
         self.history.log_action(
             user_id=user_id,
             action_type=ActionType.CREATE,
             entity_type=EntityType.CATEGORY,
             entity_id=new_item.id,
-            description=f"Categoria '{new_item.name}' criada."
+            description=f"Categoria '{new_item.name}' criada.",
         )
         await self.session.commit()
         return new_item
@@ -35,7 +40,7 @@ class CategoryService(BaseService[Category]):
             action_type=ActionType.UPDATE,
             entity_type=EntityType.CATEGORY,
             entity_id=updated_item.id,
-            description=f"Categoria '{updated_item.name}' atualizada."
+            description=f"Categoria '{updated_item.name}' atualizada.",
         )
         await self.session.commit()
         return updated_item
@@ -83,7 +88,7 @@ class CategoryService(BaseService[Category]):
             action_type=ActionType.DELETE,
             entity_type=EntityType.CATEGORY,
             entity_id=id,
-            description=f"Categoria '{item_db.name}' excluída."
+            description=f"Categoria '{item_db.name}' excluída.",
         )
 
         await super().delete(id, user_id)
@@ -122,7 +127,10 @@ class CategoryService(BaseService[Category]):
         if expense_category_names:
             raise HTTPException(
                 status_code=400,
-                detail={"error": "errorHasExpenses", "categories": expense_category_names},
+                detail={
+                    "error": "errorHasExpenses",
+                    "categories": expense_category_names,
+                },
             )
 
         query_names = select(Category.name).where(Category.id.in_(ids))
@@ -135,7 +143,51 @@ class CategoryService(BaseService[Category]):
             user_id=user_id,
             action_type=ActionType.DELETE,
             entity_type=EntityType.CATEGORY,
-            description=f"Múltiplas categorias excluídas: {deleted_names}."
+            description=f"Múltiplas categorias excluídas: {deleted_names}.",
         )
 
         await super().delete_bulk(ids, user_id)
+
+    async def get_amounts(
+        self,
+        user_id: str,
+        start_created_at: str | None = None,
+        end_created_at: str | None = None,
+    ) -> list[dict]:
+        query = (
+            select(
+                Category.id.label("category_id"),
+                Category.name.label("category_name"),
+                Category.color.label("category_color"),
+                func.sum(SaleProduct.unit_price * SaleProduct.quantity).label("value"),
+            )
+            .join(Product, Product.category_id == Category.id)
+            .join(SaleProduct, SaleProduct.product_id == Product.id)
+            .join(Sale, Sale.id == SaleProduct.sale_id)
+            .where(
+                Category.user_id == uuid.UUID(user_id), Sale.status == SaleStatus.DONE
+            )
+            .group_by(Category.id, Category.name, Category.color)
+            .order_by(func.sum(SaleProduct.unit_price * SaleProduct.quantity).desc())
+        )
+
+        if start_created_at:
+            query = query.where(SaleProduct.created_at >= start_created_at)
+        if end_created_at:
+            query = query.where(SaleProduct.created_at <= end_created_at)
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        amounts = []
+        for row in rows:
+            amounts.append(
+                {
+                    "category_id": str(row.category_id),
+                    "category_name": row.category_name,
+                    "category_color": row.category_color,
+                    "value": float(row.value) if row.value is not None else 0.0,
+                }
+            )
+
+        return amounts

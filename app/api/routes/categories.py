@@ -9,9 +9,11 @@ from app.api.schemas.category import (
     CategoryResponse,
     CategoryUpdate,
     CategoryBulkDelete,
+    CategoryAmountResponse
 )
 from app.api.dependencies import UserLoggedDep, CategoryServiceDep
 from app.api.utils.paginated_response import PaginatedResponse
+from datetime import datetime
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 
@@ -45,6 +47,20 @@ async def get_all_categories(
         get_all=get_all,
     )
     return result
+
+
+@router.get("/amounts", response_model=list[CategoryAmountResponse])
+async def get_categories_amounts(
+    user: UserLoggedDep,
+    service: CategoryServiceDep,
+    start_created_at: datetime | None = Query(None),
+    end_created_at: datetime | None = Query(None),
+):
+    return await service.get_amounts(
+        str(user.id),
+        start_created_at=str(start_created_at) if start_created_at else None,
+        end_created_at=str(end_created_at) if end_created_at else None
+    )
 
 
 @router.get("/{category_id}", response_model=CategoryResponse)
