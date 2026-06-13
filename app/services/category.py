@@ -153,7 +153,7 @@ class CategoryService(BaseService[Category]):
         user_id: str,
         start_created_at: str | None = None,
         end_created_at: str | None = None,
-    ) -> list[dict]:
+    ) -> dict:
         query = (
             select(
                 Category.id.label("category_id"),
@@ -180,14 +180,32 @@ class CategoryService(BaseService[Category]):
         rows = result.all()
 
         amounts = []
+        total = 0.0
         for row in rows:
+            val = float(row.value) if row.value is not None else 0.0
+            total += val
             amounts.append(
                 {
                     "category_id": str(row.category_id),
                     "category_name": row.category_name,
                     "category_color": row.category_color,
-                    "value": float(row.value) if row.value is not None else 0.0,
+                    "value": val,
                 }
             )
 
-        return amounts
+        if len(amounts) > 5:
+            top_amounts = amounts[:5]
+            others_value = sum(item["value"] for item in amounts[5:])
+            if others_value > 0:
+                top_amounts.append({
+                    "category_id": "others",
+                    "category_name": "Outros",
+                    "category_color": "#808080",
+                    "value": others_value
+                })
+            amounts = top_amounts
+
+        return {
+            "items": amounts,
+            "total": total
+        }

@@ -9,7 +9,8 @@ from app.api.schemas.category import (
     CategoryResponse,
     CategoryUpdate,
     CategoryBulkDelete,
-    CategoryAmountResponse
+    CategoryAmountResponse,
+    CategoryAmountsWrapper
 )
 from app.api.dependencies import UserLoggedDep, CategoryServiceDep
 from app.api.utils.paginated_response import PaginatedResponse
@@ -49,7 +50,7 @@ async def get_all_categories(
     return result
 
 
-@router.get("/amounts", response_model=list[CategoryAmountResponse])
+@router.get("/amounts", response_model=CategoryAmountsWrapper)
 async def get_categories_amounts(
     user: UserLoggedDep,
     service: CategoryServiceDep,

@@ -37,3 +37,8 @@ class CategoryAmountResponse(BaseModel):
     category_name: str
     category_color: Optional[str] = None
     value: float
+
+
+class CategoryAmountsWrapper(BaseModel):
+    items: list[CategoryAmountResponse]
+    total: float
