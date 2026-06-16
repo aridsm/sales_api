@@ -2,7 +2,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from sqlalchemy import func
 from app.database.models.sale import Sale
-from app.database.models.sale_product import SaleProduct
 from app.database.models.other_expense import OtherExpense
 from app.api.schemas.dashboard import FrequencyEnum, ChartItem
 from app.enums.sale import SaleStatus
@@ -26,7 +25,6 @@ class DashboardService:
         try:
             return dt.replace(year=dt.year - years)
         except ValueError:
-            # February 29 on a non-leap year
             return dt.replace(year=dt.year - years, day=28)
 
     async def get_chart_data(
@@ -38,28 +36,21 @@ class DashboardService:
         timezone_offset: int = 0,
     ) -> list[ChartItem]:
 
-        # User local timezone
-        # timezone_offset is in minutes (e.g. 180 for UTC-3 or -180, we assume the JS offset where UTC-3 is +180)
-        # Actually in JS: new Date().getTimezoneOffset() -> 180 for UTC-3.
-        # So local_tz = timezone(timedelta(minutes=-timezone_offset))
         local_tz = timezone(timedelta(minutes=-timezone_offset))
 
         now_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
         now_local = now_utc.astimezone(local_tz)
 
-        # Calculate the end of the current period
         if frequency == FrequencyEnum.daily:
             current_period_end = now_local.replace(
                 hour=23, minute=59, second=59, microsecond=999999
             )
         elif frequency == FrequencyEnum.weekly:
-            # End of current week (Saturday, since week starts on Sunday)
             days_to_saturday = (5 - now_local.weekday()) % 7
             current_period_end = (now_local + timedelta(days=days_to_saturday)).replace(
                 hour=23, minute=59, second=59, microsecond=999999
             )
         elif frequency == FrequencyEnum.monthly:
-            # End of current month
             last_day = monthrange(now_local.year, now_local.month)[1]
             current_period_end = now_local.replace(
                 day=last_day, hour=23, minute=59, second=59, microsecond=999999
@@ -69,10 +60,8 @@ class DashboardService:
                 month=12, day=31, hour=23, minute=59, second=59, microsecond=999999
             )
 
-        # Calculate periods
         buckets = []
         for i in range(count):
-            # The index from the end
             offset_idx = previous * count + (count - 1 - i)
 
             if frequency == FrequencyEnum.daily:
@@ -87,7 +76,6 @@ class DashboardService:
                 name = f"{start_dt.strftime('%d/%m')} - {end_dt.strftime('%d/%m')}"
             elif frequency == FrequencyEnum.monthly:
                 end_dt = self._subtract_months(current_period_end, offset_idx)
-                # Ensure end_dt is the last day of that month
                 last_day = monthrange(end_dt.year, end_dt.month)[1]
                 end_dt = end_dt.replace(day=last_day)
                 start_dt = end_dt.replace(
@@ -117,14 +105,11 @@ class DashboardService:
         global_start_local = buckets[0]["start"]
         global_end_local = buckets[-1]["end"]
 
-        # Convert back to naive UTC for DB query since DB stores naive UTC
         global_start_utc = global_start_local.astimezone(timezone.utc).replace(
             tzinfo=None
         )
         global_end_utc = global_end_local.astimezone(timezone.utc).replace(tzinfo=None)
 
-        # 1. Fetch Sales (Revenue)
-        # Revenue is sum of sales.total
         sale_query = select(Sale.created_at, Sale.total).where(
             Sale.user_id == uuid.UUID(user_id),
             Sale.status == SaleStatus.DONE,
@@ -135,17 +120,14 @@ class DashboardService:
         sales = sales_result.all()
 
         for sale_dt, sale_total in sales:
-            # Convert naive UTC to local
             sale_dt_utc = sale_dt.replace(tzinfo=timezone.utc)
             sale_dt_local = sale_dt_utc.astimezone(local_tz)
 
-            # Find the right bucket
             for b in buckets:
                 if b["start"] <= sale_dt_local <= b["end"]:
                     b["revenue"] += float(sale_total)
                     break
 
-        # 2. Fetch OtherExpenses
         expense_query = select(OtherExpense.date, OtherExpense.value).where(
             OtherExpense.user_id == uuid.UUID(user_id),
             OtherExpense.date >= global_start_utc,
@@ -163,10 +145,69 @@ class DashboardService:
                     b["expenses"] += float(exp_value)
                     break
 
-        # Format output
         chart_items = [
             ChartItem(name=b["name"], revenue=b["revenue"], expenses=b["expenses"])
             for b in buckets
         ]
 
         return chart_items
+
+    async def get_budgets(
+        self,
+        user_id: str,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> dict:
+        if start_date and start_date.tzinfo is not None:
+            start_date = start_date.replace(tzinfo=None)
+        if end_date and end_date.tzinfo is not None:
+            end_date = end_date.replace(tzinfo=None)
+
+        total_sales_query = select(func.coalesce(func.sum(Sale.total), 0)).where(
+            Sale.user_id == uuid.UUID(user_id),
+            Sale.status == SaleStatus.DONE,
+        )
+        total_sales_result = await self.session.execute(total_sales_query)
+        total_sales = float(total_sales_result.scalar())
+
+        total_expenses_query = select(
+            func.coalesce(func.sum(OtherExpense.value), 0)
+        ).where(
+            OtherExpense.user_id == uuid.UUID(user_id),
+        )
+        total_expenses_result = await self.session.execute(total_expenses_query)
+        total_expenses = float(total_expenses_result.scalar())
+
+        current_balance = total_sales - total_expenses
+
+        revenue_query = select(func.coalesce(func.sum(Sale.total), 0)).where(
+            Sale.user_id == uuid.UUID(user_id),
+            Sale.status == SaleStatus.DONE,
+        )
+        if start_date:
+            revenue_query = revenue_query.where(Sale.created_at >= start_date)
+        if end_date:
+            revenue_query = revenue_query.where(Sale.created_at <= end_date)
+
+        revenue_result = await self.session.execute(revenue_query)
+        revenue = float(revenue_result.scalar())
+
+        expenses_query = select(func.coalesce(func.sum(OtherExpense.value), 0)).where(
+            OtherExpense.user_id == uuid.UUID(user_id),
+        )
+        if start_date:
+            expenses_query = expenses_query.where(OtherExpense.date >= start_date)
+        if end_date:
+            expenses_query = expenses_query.where(OtherExpense.date <= end_date)
+
+        expenses_result = await self.session.execute(expenses_query)
+        expenses = float(expenses_result.scalar())
+
+        net_profit = revenue - expenses
+
+        return {
+            "current_balance": current_balance,
+            "net_profit": net_profit,
+            "revenue": revenue,
+            "expenses": expenses,
+        }

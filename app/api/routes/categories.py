@@ -9,8 +9,7 @@ from app.api.schemas.category import (
     CategoryResponse,
     CategoryUpdate,
     CategoryBulkDelete,
-    CategoryAmountResponse,
-    CategoryAmountsWrapper
+    CategoryAmountsWrapper,
 )
 from app.api.dependencies import UserLoggedDep, CategoryServiceDep
 from app.api.utils.paginated_response import PaginatedResponse
@@ -54,13 +53,15 @@ async def get_all_categories(
 async def get_categories_amounts(
     user: UserLoggedDep,
     service: CategoryServiceDep,
+    type: CategoryType = Query(CategoryType.PRODUCT),
     start_created_at: datetime | None = Query(None),
     end_created_at: datetime | None = Query(None),
 ):
     return await service.get_amounts(
         str(user.id),
-        start_created_at=str(start_created_at) if start_created_at else None,
-        end_created_at=str(end_created_at) if end_created_at else None
+        type=type,
+        start_created_at=start_created_at,
+        end_created_at=end_created_at,
     )
 
 

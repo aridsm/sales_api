@@ -11,3 +11,9 @@ class ChartItem(BaseModel):
     name: str
     revenue: float
     expenses: float
+
+class BudgetResponse(BaseModel):
+    current_balance: float
+    net_profit: float
+    revenue: float
+    expenses: float

@@ -7,7 +7,9 @@ from app.database.models.other_expense import OtherExpense
 from app.database.models.sale_product import SaleProduct
 from app.database.models.sale import Sale
 from app.enums.sale import SaleStatus
+from app.enums.category import CategoryType
 import uuid
+from datetime import datetime
 from fastapi import HTTPException
 from typing import Any
 from app.services.history import HistoryService
@@ -151,30 +153,62 @@ class CategoryService(BaseService[Category]):
     async def get_amounts(
         self,
         user_id: str,
-        start_created_at: str | None = None,
-        end_created_at: str | None = None,
+        type: CategoryType = CategoryType.PRODUCT,
+        start_created_at: datetime | None = None,
+        end_created_at: datetime | None = None,
     ) -> dict:
-        query = (
-            select(
-                Category.id.label("category_id"),
-                Category.name.label("category_name"),
-                Category.color.label("category_color"),
-                func.sum(SaleProduct.unit_price * SaleProduct.quantity).label("value"),
-            )
-            .join(Product, Product.category_id == Category.id)
-            .join(SaleProduct, SaleProduct.product_id == Product.id)
-            .join(Sale, Sale.id == SaleProduct.sale_id)
-            .where(
-                Category.user_id == uuid.UUID(user_id), Sale.status == SaleStatus.DONE
-            )
-            .group_by(Category.id, Category.name, Category.color)
-            .order_by(func.sum(SaleProduct.unit_price * SaleProduct.quantity).desc())
-        )
+        if start_created_at and start_created_at.tzinfo is not None:
+            start_created_at = start_created_at.replace(tzinfo=None)
+        if end_created_at and end_created_at.tzinfo is not None:
+            end_created_at = end_created_at.replace(tzinfo=None)
 
-        if start_created_at:
-            query = query.where(SaleProduct.created_at >= start_created_at)
-        if end_created_at:
-            query = query.where(SaleProduct.created_at <= end_created_at)
+        if type == CategoryType.PRODUCT:
+            query = (
+                select(
+                    Category.id.label("category_id"),
+                    Category.name.label("category_name"),
+                    Category.color.label("category_color"),
+                    func.sum(SaleProduct.unit_price * SaleProduct.quantity).label(
+                        "value"
+                    ),
+                )
+                .join(Product, Product.category_id == Category.id)
+                .join(SaleProduct, SaleProduct.product_id == Product.id)
+                .join(Sale, Sale.id == SaleProduct.sale_id)
+                .where(
+                    Category.user_id == uuid.UUID(user_id),
+                    Sale.status == SaleStatus.DONE,
+                )
+                .group_by(Category.id, Category.name, Category.color)
+                .order_by(
+                    func.sum(SaleProduct.unit_price * SaleProduct.quantity).desc()
+                )
+            )
+
+            if start_created_at:
+                query = query.where(SaleProduct.created_at >= start_created_at)
+            if end_created_at:
+                query = query.where(SaleProduct.created_at <= end_created_at)
+        else:
+            query = (
+                select(
+                    Category.id.label("category_id"),
+                    Category.name.label("category_name"),
+                    Category.color.label("category_color"),
+                    func.sum(OtherExpense.value).label("value"),
+                )
+                .join(OtherExpense, OtherExpense.category_id == Category.id)
+                .where(
+                    Category.user_id == uuid.UUID(user_id),
+                )
+                .group_by(Category.id, Category.name, Category.color)
+                .order_by(func.sum(OtherExpense.value).desc())
+            )
+
+            if start_created_at:
+                query = query.where(OtherExpense.date >= start_created_at)
+            if end_created_at:
+                query = query.where(OtherExpense.date <= end_created_at)
 
         result = await self.session.execute(query)
         rows = result.all()
@@ -197,15 +231,14 @@ class CategoryService(BaseService[Category]):
             top_amounts = amounts[:5]
             others_value = sum(item["value"] for item in amounts[5:])
             if others_value > 0:
-                top_amounts.append({
-                    "category_id": "others",
-                    "category_name": "Outros",
-                    "category_color": "#808080",
-                    "value": others_value
-                })
+                top_amounts.append(
+                    {
+                        "category_id": "others",
+                        "category_name": "Outros",
+                        "category_color": "#808080",
+                        "value": others_value,
+                    }
+                )
             amounts = top_amounts
 
-        return {
-            "items": amounts,
-            "total": total
-        }
+        return {"items": amounts, "total": total}
