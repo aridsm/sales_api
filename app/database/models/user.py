@@ -1,5 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlmodel import SQLModel, Field
+from sqlalchemy import DateTime
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 
@@ -13,8 +14,8 @@ class User(SQLModel, table=True):
     name: str = Field(max_length=255, nullable=False)
     email: str = Field(max_length=255, unique=True, nullable=False, index=True)
     password_hash: str = Field(max_length=255, nullable=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
-    updated_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False, sa_type=DateTime(timezone=True))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False, sa_type=DateTime(timezone=True))
 
     # def __repr__(self):
     #     return f"<User(id={self.id}, email={self.email}, name={self.name})>"

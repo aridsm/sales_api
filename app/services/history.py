@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from app.services.base import BaseService
@@ -38,11 +39,19 @@ class HistoryService(BaseService[History]):
         page: int = 1,
         page_size: int = 20,
         search: str | None = None,
+        start_created_at: datetime | None = None,
+        end_created_at: datetime | None = None,
         **kwargs,
     ):
         query = select(History).where(History.user_id == uuid.UUID(user_id))
         if search:
             query = query.where(History.description.ilike(f"%{search}%"))
+
+        if start_created_at:
+            query = query.where(History.created_at >= start_created_at)
+        if end_created_at:
+            query = query.where(History.created_at <= end_created_at)
+
         query = query.order_by(History.created_at.desc())
         return await super().get_all(
             query=query, user_id=user_id, page=page, page_size=page_size, **kwargs

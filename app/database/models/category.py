@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import datetime, timezone
+from sqlalchemy import DateTime
 from pydantic import ConfigDict
 from sqlmodel import SQLModel, Field
 import uuid
@@ -14,7 +15,7 @@ class Category(SQLModel, table=True):
     color: str | None = Field(default=None, max_length=7)
     type: CategoryType = Field(nullable=False)
     user_id: uuid.UUID = Field(foreign_key="users.id", nullable=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False, sa_type=DateTime(timezone=True))
 
     @property
     def products(self) -> int:

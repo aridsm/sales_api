@@ -157,10 +157,6 @@ class CategoryService(BaseService[Category]):
         start_created_at: datetime | None = None,
         end_created_at: datetime | None = None,
     ) -> dict:
-        if start_created_at and start_created_at.tzinfo is not None:
-            start_created_at = start_created_at.replace(tzinfo=None)
-        if end_created_at and end_created_at.tzinfo is not None:
-            end_created_at = end_created_at.replace(tzinfo=None)
 
         if type == CategoryType.PRODUCT:
             query = (

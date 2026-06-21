@@ -1,5 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlmodel import SQLModel, Field
+from sqlalchemy import DateTime
 import uuid
 
 
@@ -15,7 +16,7 @@ class Product(SQLModel, table=True):
     stock_amount: int = Field(default=0, nullable=False)
     sold_amount: int = Field(default=0, nullable=False)
     user_id: uuid.UUID = Field(foreign_key="users.id", nullable=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False, sa_type=DateTime(timezone=True))
 
     # def __repr__(self):
     #     return f"<Product(id={self.id}, name={self.name}, category_id={self.category_id}, price={self.price})>"

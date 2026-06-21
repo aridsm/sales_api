@@ -105,10 +105,8 @@ class DashboardService:
         global_start_local = buckets[0]["start"]
         global_end_local = buckets[-1]["end"]
 
-        global_start_utc = global_start_local.astimezone(timezone.utc).replace(
-            tzinfo=None
-        )
-        global_end_utc = global_end_local.astimezone(timezone.utc).replace(tzinfo=None)
+        global_start_utc = global_start_local.astimezone(timezone.utc)
+        global_end_utc = global_end_local.astimezone(timezone.utc)
 
         sale_query = select(Sale.created_at, Sale.total).where(
             Sale.user_id == uuid.UUID(user_id),
@@ -120,8 +118,7 @@ class DashboardService:
         sales = sales_result.all()
 
         for sale_dt, sale_total in sales:
-            sale_dt_utc = sale_dt.replace(tzinfo=timezone.utc)
-            sale_dt_local = sale_dt_utc.astimezone(local_tz)
+            sale_dt_local = sale_dt.astimezone(local_tz)
 
             for b in buckets:
                 if b["start"] <= sale_dt_local <= b["end"]:
@@ -137,8 +134,7 @@ class DashboardService:
         expenses = expenses_result.all()
 
         for exp_dt, exp_value in expenses:
-            exp_dt_utc = exp_dt.replace(tzinfo=timezone.utc)
-            exp_dt_local = exp_dt_utc.astimezone(local_tz)
+            exp_dt_local = exp_dt.astimezone(local_tz)
 
             for b in buckets:
                 if b["start"] <= exp_dt_local <= b["end"]:
@@ -158,10 +154,6 @@ class DashboardService:
         start_date: datetime | None = None,
         end_date: datetime | None = None,
     ) -> dict:
-        if start_date and start_date.tzinfo is not None:
-            start_date = start_date.replace(tzinfo=None)
-        if end_date and end_date.tzinfo is not None:
-            end_date = end_date.replace(tzinfo=None)
 
         total_sales_query = select(func.coalesce(func.sum(Sale.total), 0)).where(
             Sale.user_id == uuid.UUID(user_id),

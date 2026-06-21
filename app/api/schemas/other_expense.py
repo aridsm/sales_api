@@ -13,6 +13,7 @@ class OtherExpenseBase(BaseModel):
     category_id: UUID
 
 
+
 class OtherExpenseCreate(OtherExpenseBase):
     pass
 
@@ -23,6 +24,7 @@ class OtherExpenseUpdate(BaseModel):
     value: Optional[float] = Field(None, gt=0)
     date: Optional[datetime] = Field(None)
     category_id: Optional[UUID] = Field(None)
+
 
 
 class OtherExpenseResponse(OtherExpenseBase):
