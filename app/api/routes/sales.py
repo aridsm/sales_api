@@ -1,7 +1,10 @@
 from typing import List
 from uuid import UUID
 from app.enums.sale import SaleStatus
+from app.database.models.sale import Sale
 from fastapi import APIRouter, status, Query
+from sqlalchemy import cast, String
+from sqlmodel import select
 
 from app.api.schemas.sale import (
     SaleCreate,
@@ -23,9 +26,16 @@ async def get_all_sales(
     sort: str | None = "category_id",
     status: List[SaleStatus] | None = Query(None),
     id: List[UUID] | None = Query(None),
+    search: str | None = None,
 ):
+    query = None
+
+    if search:
+        query = service._get_base_query(user_id=str(user.id))
+        query = query.where(cast(Sale.code, String).ilike(f"%{search}%"))
 
     result = await service.get_all(
+        query=query,
         user_id=str(user.id),
         page=page,
         page_size=page_size,

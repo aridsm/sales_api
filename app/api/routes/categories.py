@@ -1,8 +1,10 @@
 from typing import List
 from uuid import UUID
 from app.database.models.category import Category
+from app.database.models.product import Product
 from app.enums.category import CategoryType
 from fastapi import APIRouter, status, Query
+from sqlalchemy import exists, select as sa_select
 
 from app.api.schemas.category import (
     CategoryCreate,
@@ -31,8 +33,19 @@ async def get_all_categories(
     include_ids: list[UUID] | None = Query(None),
     exclude_ids: list[UUID] | None = Query(None),
     get_all: bool = False,
+    product_search: str | None = Query(None),
 ):
     base_query = service.get_base_query_with_count(str(user.id))
+
+    if product_search:
+        product_exists = exists(
+            sa_select(Product.id).where(
+                Product.category_id == Category.id,
+                Product.name.ilike(f"%{product_search}%"),
+            ).correlate(Category)
+        )
+        base_query = base_query.where(product_exists)
+
     result = await service.get_all(
         user_id=str(user.id),
         query=base_query,

@@ -23,6 +23,7 @@ async def get_all_other_expenses(
     service: OtherExpenseServiceDep,
     page: int = 1,
     page_size: int = 20,
+    search: str | None = None,
     start_created_at: datetime | None = Query(None),
     end_created_at: datetime | None = Query(None),
 ):
@@ -37,7 +38,7 @@ async def get_all_other_expenses(
         query = query.where(OtherExpense.date <= end_created_at)
 
     result = await service.get_all(
-        query=query, user_id=str(user.id), page=page, page_size=page_size
+        query=query, user_id=str(user.id), page=page, page_size=page_size, search=search
     )
     return result
 

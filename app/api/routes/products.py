@@ -26,6 +26,7 @@ async def get_all_products(
     category_id: list[str] | None = Query(default=None),
     page: int = 1,
     page_size: int = 20,
+    search: str | None = None,
 ):
     if category_id:
         category_id = [c for c in category_id if c]
@@ -43,6 +44,7 @@ async def get_all_products(
         user_id=str(user.id),
         page=page,
         page_size=page_size,
+        search=search,
         category_id=category_id,
     )
     return result
