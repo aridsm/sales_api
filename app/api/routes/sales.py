@@ -1,9 +1,12 @@
 from typing import List
 from uuid import UUID
+from datetime import datetime
 from app.enums.sale import SaleStatus
 from app.database.models.sale import Sale
+from app.database.models.sale_product import SaleProduct
+from app.database.models.product import Product
 from fastapi import APIRouter, status, Query
-from sqlalchemy import cast, String
+from sqlalchemy import cast, String, exists, select as sa_select
 from sqlmodel import select
 
 from app.api.schemas.sale import (
@@ -27,12 +30,46 @@ async def get_all_sales(
     status: List[SaleStatus] | None = Query(None),
     id: List[UUID] | None = Query(None),
     search: str | None = None,
+    start_total: float | None = Query(None),
+    end_total: float | None = Query(None),
+    start_created_at: datetime | None = Query(None),
+    end_created_at: datetime | None = Query(None),
+    product_id: List[UUID] | None = Query(None),
+    category_id: List[UUID] | None = Query(None),
 ):
-    query = None
+    query = service._get_base_query(user_id=str(user.id))
 
     if search:
-        query = service._get_base_query(user_id=str(user.id))
         query = query.where(cast(Sale.code, String).ilike(f"%{search}%"))
+
+    if start_total is not None:
+        query = query.where(Sale.total >= start_total)
+    if end_total is not None:
+        query = query.where(Sale.total <= end_total)
+    if start_created_at:
+        query = query.where(Sale.created_at >= start_created_at)
+    if end_created_at:
+        query = query.where(Sale.created_at <= end_created_at)
+
+    if product_id:
+        product_exists = exists(
+            sa_select(SaleProduct.id).where(
+                SaleProduct.sale_id == Sale.id,
+                SaleProduct.product_id.in_(product_id),
+            ).correlate(Sale)
+        )
+        query = query.where(product_exists)
+
+    if category_id:
+        category_exists = exists(
+            sa_select(SaleProduct.id)
+            .join(Product, SaleProduct.product_id == Product.id)
+            .where(
+                SaleProduct.sale_id == Sale.id,
+                Product.category_id.in_(category_id),
+            ).correlate(Sale)
+        )
+        query = query.where(category_exists)
 
     result = await service.get_all(
         query=query,

@@ -1,3 +1,4 @@
+from typing import List
 from uuid import UUID
 from datetime import datetime
 from fastapi import APIRouter, status, Query
@@ -26,6 +27,11 @@ async def get_all_other_expenses(
     search: str | None = None,
     start_created_at: datetime | None = Query(None),
     end_created_at: datetime | None = Query(None),
+    start_date: datetime | None = Query(None),
+    end_date: datetime | None = Query(None),
+    start_value: float | None = Query(None),
+    end_value: float | None = Query(None),
+    category_id: List[UUID] | None = Query(None),
 ):
     query = (
         select(OtherExpense, Category.name.label("category_name"), Category.color.label("category_color"))
@@ -36,6 +42,16 @@ async def get_all_other_expenses(
         query = query.where(OtherExpense.date >= start_created_at)
     if end_created_at:
         query = query.where(OtherExpense.date <= end_created_at)
+    if start_date:
+        query = query.where(OtherExpense.date >= start_date)
+    if end_date:
+        query = query.where(OtherExpense.date <= end_date)
+    if start_value is not None:
+        query = query.where(OtherExpense.value >= start_value)
+    if end_value is not None:
+        query = query.where(OtherExpense.value <= end_value)
+    if category_id:
+        query = query.where(OtherExpense.category_id.in_(category_id))
 
     result = await service.get_all(
         query=query, user_id=str(user.id), page=page, page_size=page_size, search=search

@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, status, Query
 from sqlmodel import select
@@ -27,6 +28,10 @@ async def get_all_products(
     page: int = 1,
     page_size: int = 20,
     search: str | None = None,
+    start_price: float | None = Query(None),
+    end_price: float | None = Query(None),
+    start_created_at: datetime | None = Query(None),
+    end_created_at: datetime | None = Query(None),
 ):
     if category_id:
         category_id = [c for c in category_id if c]
@@ -38,6 +43,15 @@ async def get_all_products(
         Category.name.label("category_name"),
         Category.color.label("category_color"),
     ).outerjoin(Category, Product.category_id == Category.id)
+
+    if start_price is not None:
+        query = query.where(Product.price >= start_price)
+    if end_price is not None:
+        query = query.where(Product.price <= end_price)
+    if start_created_at:
+        query = query.where(Product.created_at >= start_created_at)
+    if end_created_at:
+        query = query.where(Product.created_at <= end_created_at)
 
     result = await service.get_all(
         query=query,

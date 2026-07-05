@@ -34,17 +34,43 @@ async def get_all_categories(
     exclude_ids: list[UUID] | None = Query(None),
     get_all: bool = False,
     product_search: str | None = Query(None),
+    start_product_created_at: datetime | None = Query(None),
+    end_product_created_at: datetime | None = Query(None),
+    start_price: float | None = Query(None),
+    end_price: float | None = Query(None),
 ):
     base_query = service.get_base_query_with_count(str(user.id))
 
     if product_search:
         product_exists = exists(
-            sa_select(Product.id).where(
+            sa_select(Product.id)
+            .where(
                 Product.category_id == Category.id,
                 Product.name.ilike(f"%{product_search}%"),
-            ).correlate(Category)
+            )
+            .correlate(Category)
         )
         base_query = base_query.where(product_exists)
+
+    if (
+        start_product_created_at
+        or end_product_created_at
+        or start_price is not None
+        or end_price is not None
+    ):
+        product_conditions = [Product.category_id == Category.id]
+        if start_product_created_at:
+            product_conditions.append(Product.created_at >= start_product_created_at)
+        if end_product_created_at:
+            product_conditions.append(Product.created_at <= end_product_created_at)
+        if start_price is not None:
+            product_conditions.append(Product.price >= start_price)
+        if end_price is not None:
+            product_conditions.append(Product.price <= end_price)
+        product_filter_exists = exists(
+            sa_select(Product.id).where(*product_conditions).correlate(Category)
+        )
+        base_query = base_query.where(product_filter_exists)
 
     result = await service.get_all(
         user_id=str(user.id),
