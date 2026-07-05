@@ -38,7 +38,7 @@ class DashboardService:
 
         local_tz = timezone(timedelta(minutes=-timezone_offset))
 
-        now_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
+        now_utc = datetime.now(timezone.utc)
         now_local = now_utc.astimezone(local_tz)
 
         if frequency == FrequencyEnum.daily:

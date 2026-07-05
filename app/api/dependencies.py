@@ -35,15 +35,6 @@ async def get_bearer_token(
             detail={"error": "errorInvalidToken"},
         )
 
-    res = await session.execute(select(User).where(User.id == token_payload.user_id))
-    user = res.scalars().one_or_none()
-
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"error": "errorUserNotFound"},
-        )
-
     return token_payload
 
 

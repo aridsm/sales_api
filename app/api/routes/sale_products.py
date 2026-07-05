@@ -9,6 +9,7 @@ from app.api.schemas.sale_product import (
 )
 from app.api.dependencies import UserLoggedDep, SaleProductServiceDep
 from app.api.utils.paginated_response import PaginatedResponse
+from app.database.models.sale_product import SaleProduct
 
 router = APIRouter(prefix="/sale_products", tags=["sale_products"])
 
@@ -49,8 +50,6 @@ async def create_sale_product(
     user: UserLoggedDep,
     service: SaleProductServiceDep,
 ):
-    from app.database.models.sale_product import SaleProduct
-
     return await service.create(SaleProduct(**body.model_dump()), user.id)
 
 

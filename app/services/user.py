@@ -6,9 +6,8 @@ from fastapi import HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.api.schemas.user import TokenResponse, UserCreate, UserLogin
+from app.api.schemas.user import TokenResponse, UserCreate
 from app.api.tokens import TokenPayload, create_access_token, decode_jwt_token
-from app.services.base import BaseService
 from app.database.models.user import User
 from app.config import settings
 from app.database.redis import redis_db

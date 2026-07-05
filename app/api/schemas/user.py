@@ -13,11 +13,6 @@ class UserCreate(UserBase):
     password: str = Field(..., min_length=6)
 
 
-class UserLogin:
-    email: EmailStr
-    password: str
-
-
 class UserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     email: Optional[EmailStr] = None

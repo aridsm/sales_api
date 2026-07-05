@@ -14,7 +14,7 @@ class Category(SQLModel, table=True):
     name: str = Field(max_length=255, nullable=False)
     color: str | None = Field(default=None, max_length=7)
     type: CategoryType = Field(nullable=False)
-    user_id: uuid.UUID = Field(foreign_key="users.id", nullable=False)
+    user_id: uuid.UUID = Field(foreign_key="users.id", nullable=False, index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False, sa_type=DateTime(timezone=True))
 
     @property

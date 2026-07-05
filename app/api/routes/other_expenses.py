@@ -39,9 +39,9 @@ async def get_all_other_expenses(
     )
 
     if start_created_at:
-        query = query.where(OtherExpense.date >= start_created_at)
+        query = query.where(OtherExpense.created_at >= start_created_at)
     if end_created_at:
-        query = query.where(OtherExpense.date <= end_created_at)
+        query = query.where(OtherExpense.created_at <= end_created_at)
     if start_date:
         query = query.where(OtherExpense.date >= start_date)
     if end_date:

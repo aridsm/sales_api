@@ -7,7 +7,6 @@ from app.database.models.sale_product import SaleProduct
 from app.database.models.product import Product
 from fastapi import APIRouter, status, Query
 from sqlalchemy import cast, String, exists, select as sa_select
-from sqlmodel import select
 
 from app.api.schemas.sale import (
     SaleCreate,
@@ -26,7 +25,7 @@ async def get_all_sales(
     service: SaleServiceDep,
     page: int = 1,
     page_size: int = 20,
-    sort: str | None = "category_id",
+    sort: str | None = "created_at",
     status: List[SaleStatus] | None = Query(None),
     id: List[UUID] | None = Query(None),
     search: str | None = None,
@@ -37,7 +36,7 @@ async def get_all_sales(
     product_id: List[UUID] | None = Query(None),
     category_id: List[UUID] | None = Query(None),
 ):
-    query = service._get_base_query(user_id=str(user.id))
+    query = service.get_base_query(user_id=str(user.id))
 
     if search:
         query = query.where(cast(Sale.code, String).ilike(f"%{search}%"))
@@ -53,10 +52,12 @@ async def get_all_sales(
 
     if product_id:
         product_exists = exists(
-            sa_select(SaleProduct.id).where(
+            sa_select(SaleProduct.id)
+            .where(
                 SaleProduct.sale_id == Sale.id,
                 SaleProduct.product_id.in_(product_id),
-            ).correlate(Sale)
+            )
+            .correlate(Sale)
         )
         query = query.where(product_exists)
 
@@ -67,7 +68,8 @@ async def get_all_sales(
             .where(
                 SaleProduct.sale_id == Sale.id,
                 Product.category_id.in_(category_id),
-            ).correlate(Sale)
+            )
+            .correlate(Sale)
         )
         query = query.where(category_exists)
 

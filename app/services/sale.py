@@ -19,7 +19,7 @@ class SaleService(BaseService[Sale]):
         super().__init__(Sale, session)
         self.history = HistoryService(session)
 
-    def _get_base_query(self, user_id: str) -> Select:
+    def get_base_query(self, user_id: str) -> Select:
         return (
             select(Sale, func.count(SaleProduct.id).label("items_count"))
             .outerjoin(SaleProduct, Sale.id == SaleProduct.sale_id)
@@ -31,7 +31,7 @@ class SaleService(BaseService[Sale]):
         self, query: Select | None = None, user_id: str | None = None, **kwargs
     ):
         if query is None:
-            query = self._get_base_query(user_id=user_id)
+            query = self.get_base_query(user_id=user_id)
         return await super().get_all(query=query, user_id=user_id, **kwargs)
 
     async def get_by_id(
@@ -41,11 +41,11 @@ class SaleService(BaseService[Sale]):
         query: Select | None = None,
     ) -> Any:
         if query is None:
-            query = self._get_base_query(user_id=user_id).where(Sale.id == id)
+            query = self.get_base_query(user_id=user_id).where(Sale.id == id)
         return await super().get_by_id(id, user_id=user_id, query=query)
 
     async def get_sale_with_details(self, sale_id: uuid.UUID, user_id: str) -> dict:
-        query = self._get_base_query(user_id=user_id).where(Sale.id == sale_id)
+        query = self.get_base_query(user_id=user_id).where(Sale.id == sale_id)
         res = await self.session.execute(query)
         row = res.mappings().first()
         if not row:
@@ -141,7 +141,7 @@ class SaleService(BaseService[Sale]):
         product_ids = [sp.product_id for sp in sale_products]
 
         products_result = await self.session.execute(
-            select(Product).where(Product.id.in_(product_ids))
+            select(Product).where(Product.id.in_(product_ids), Product.user_id == user_id)
         )
         products = {p.id: p for p in products_result.scalars().all()}
 

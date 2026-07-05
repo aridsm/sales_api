@@ -1,4 +1,5 @@
 import uuid
+from uuid import UUID
 from datetime import datetime
 
 from fastapi import APIRouter, status, Query
@@ -24,7 +25,7 @@ router = APIRouter(prefix="/products", tags=["products"])
 async def get_all_products(
     user: UserLoggedDep,
     service: ProductServiceDep,
-    category_id: list[str] | None = Query(default=None),
+    category_id: list[UUID] | None = Query(default=None),
     page: int = 1,
     page_size: int = 20,
     search: str | None = None,
@@ -33,10 +34,6 @@ async def get_all_products(
     start_created_at: datetime | None = Query(None),
     end_created_at: datetime | None = Query(None),
 ):
-    if category_id:
-        category_id = [c for c in category_id if c]
-        if not category_id:
-            category_id = None
 
     query = select(
         Product,
@@ -93,7 +90,7 @@ async def update_product(
 
 
 @router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_bulk_categories(
+async def delete_bulk_products(
     body: ProductBulkDelete,
     user: UserLoggedDep,
     service: ProductServiceDep,
