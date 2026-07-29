@@ -1,5 +1,4 @@
 from typing import Annotated
-
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +16,8 @@ from app.services.dashboard import DashboardService
 from app.services.category import CategoryService
 from app.services.sale import SaleService
 from app.services.sale_product import SaleProductService
+from app.services.stock_entry import StockEntryService
+from app.services.stock_entry_product import StockEntryProductService
 
 security = HTTPBearer()
 
@@ -38,7 +39,9 @@ async def get_bearer_token(
     return token_payload
 
 
-async def get_user_logged(session: SessionDependency, token_payload: "TokenDep") -> UserResponse:
+async def get_user_logged(
+    session: SessionDependency, token_payload: "TokenDep"
+) -> UserResponse:
     res = await session.execute(select(User).where(User.id == token_payload.user_id))
 
     user = res.scalars().one_or_none()
@@ -63,8 +66,10 @@ def get_product_service(session: SessionDependency):
 def get_other_expense_service(session: SessionDependency):
     return OtherExpenseService(session)
 
+
 def get_dashboard_service(session: SessionDependency):
     return DashboardService(session)
+
 
 def get_history_service(session: SessionDependency):
     return HistoryService(session)
@@ -82,6 +87,14 @@ def get_sale_product_service(session: SessionDependency):
     return SaleProductService(session)
 
 
+def get_stock_entry_service(session: SessionDependency):
+    return StockEntryService(session)
+
+
+def get_stock_entry_product_service(session: SessionDependency):
+    return StockEntryProductService(session)
+
+
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
 ProductServiceDep = Annotated[ProductService, Depends(get_product_service)]
 OtherExpenseServiceDep = Annotated[
@@ -92,5 +105,9 @@ HistoryServiceDep = Annotated[HistoryService, Depends(get_history_service)]
 CategoryServiceDep = Annotated[CategoryService, Depends(get_category_service)]
 SaleServiceDep = Annotated[SaleService, Depends(get_sale_service)]
 SaleProductServiceDep = Annotated[SaleProductService, Depends(get_sale_product_service)]
+StockEntryServiceDep = Annotated[StockEntryService, Depends(get_stock_entry_service)]
+StockEntryProductServiceDep = Annotated[
+    StockEntryProductService, Depends(get_stock_entry_product_service)
+]
 UserLoggedDep = Annotated[UserResponse, Depends(get_user_logged)]
 TokenDep = Annotated[TokenPayload, Depends(get_bearer_token)]

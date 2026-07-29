@@ -3,8 +3,10 @@ from sqlmodel import select
 from sqlalchemy import func
 from app.database.models.sale import Sale
 from app.database.models.other_expense import OtherExpense
+from app.database.models.stock_entry import StockEntry
 from app.api.schemas.dashboard import FrequencyEnum, ChartItem
 from app.enums.sale import SaleStatus
+from app.enums.stock_entry import StockEntryStatus
 import uuid
 from datetime import datetime, timedelta, timezone
 from calendar import monthrange
@@ -141,6 +143,23 @@ class DashboardService:
                     b["expenses"] += float(exp_value)
                     break
 
+        stock_entry_query = select(StockEntry.date, StockEntry.total).where(
+            StockEntry.user_id == uuid.UUID(user_id),
+            StockEntry.status == StockEntryStatus.OPEN,
+            StockEntry.date >= global_start_utc,
+            StockEntry.date <= global_end_utc,
+        )
+        stock_entries_result = await self.session.execute(stock_entry_query)
+        stock_entries = stock_entries_result.all()
+
+        for st_dt, st_total in stock_entries:
+            st_dt_local = st_dt.astimezone(local_tz)
+
+            for b in buckets:
+                if b["start"] <= st_dt_local <= b["end"]:
+                    b["expenses"] += float(st_total)
+                    break
+
         chart_items = [
             ChartItem(name=b["name"], revenue=b["revenue"], expenses=b["expenses"])
             for b in buckets
@@ -170,6 +189,15 @@ class DashboardService:
         total_expenses_result = await self.session.execute(total_expenses_query)
         total_expenses = float(total_expenses_result.scalar())
 
+        total_stock_entries_query = select(
+            func.coalesce(func.sum(StockEntry.total), 0)
+        ).where(
+            StockEntry.user_id == uuid.UUID(user_id),
+            StockEntry.status == StockEntryStatus.OPEN,
+        )
+        total_stock_entries_result = await self.session.execute(total_stock_entries_query)
+        total_expenses += float(total_stock_entries_result.scalar())
+
         current_balance = total_sales - total_expenses
 
         revenue_query = select(func.coalesce(func.sum(Sale.total), 0)).where(
@@ -194,6 +222,18 @@ class DashboardService:
 
         expenses_result = await self.session.execute(expenses_query)
         expenses = float(expenses_result.scalar())
+
+        stock_expenses_query = select(func.coalesce(func.sum(StockEntry.total), 0)).where(
+            StockEntry.user_id == uuid.UUID(user_id),
+            StockEntry.status == StockEntryStatus.OPEN,
+        )
+        if start_date:
+            stock_expenses_query = stock_expenses_query.where(StockEntry.date >= start_date)
+        if end_date:
+            stock_expenses_query = stock_expenses_query.where(StockEntry.date <= end_date)
+
+        stock_expenses_result = await self.session.execute(stock_expenses_query)
+        expenses += float(stock_expenses_result.scalar())
 
         net_profit = revenue - expenses
 

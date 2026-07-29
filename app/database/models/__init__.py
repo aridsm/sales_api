@@ -5,3 +5,5 @@ from .category import Category
 from .sale import Sale
 from .sale_product import SaleProduct
 from .history import History
+from .stock_entry import StockEntry
+from .stock_entry_product import StockEntryProduct

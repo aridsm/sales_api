@@ -1,11 +1,10 @@
-from typing import List
+from typing import List, Literal
 from uuid import UUID
 from app.database.models.category import Category
 from app.database.models.product import Product
 from app.enums.category import CategoryType
 from fastapi import APIRouter, status, Query
 from sqlalchemy import exists, select as sa_select
-
 from app.api.schemas.category import (
     CategoryCreate,
     CategoryResponse,
@@ -92,7 +91,7 @@ async def get_all_categories(
 async def get_categories_amounts(
     user: UserLoggedDep,
     service: CategoryServiceDep,
-    type: CategoryType = Query(CategoryType.PRODUCT),
+    type: Literal["sales", "stock_entries", "other_expenses"] = Query("sales"),
     start_created_at: datetime | None = Query(None),
     end_created_at: datetime | None = Query(None),
 ):

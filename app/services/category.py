@@ -6,9 +6,13 @@ from app.database.models.product import Product
 from app.database.models.other_expense import OtherExpense
 from app.database.models.sale_product import SaleProduct
 from app.database.models.sale import Sale
+from app.database.models.stock_entry import StockEntry
+from app.database.models.stock_entry_product import StockEntryProduct
+from app.enums.stock_entry import StockEntryStatus
 from app.enums.sale import SaleStatus
 from app.enums.category import CategoryType
 import uuid
+from typing import Literal
 from datetime import datetime
 from fastapi import HTTPException
 from typing import Any
@@ -153,12 +157,12 @@ class CategoryService(BaseService[Category]):
     async def get_amounts(
         self,
         user_id: str,
-        type: CategoryType = CategoryType.PRODUCT,
+        type: Literal["sales", "stock_entries", "other_expenses"] = "sales",
         start_created_at: datetime | None = None,
         end_created_at: datetime | None = None,
     ) -> dict:
 
-        if type == CategoryType.PRODUCT:
+        if type == "sales":
             query = (
                 select(
                     Category.id.label("category_id"),
@@ -185,6 +189,33 @@ class CategoryService(BaseService[Category]):
                 query = query.where(SaleProduct.created_at >= start_created_at)
             if end_created_at:
                 query = query.where(SaleProduct.created_at <= end_created_at)
+        elif type == "stock_entries":
+            query = (
+                select(
+                    Category.id.label("category_id"),
+                    Category.name.label("category_name"),
+                    Category.color.label("category_color"),
+                    func.sum(StockEntryProduct.unit_price * StockEntryProduct.quantity).label(
+                        "value"
+                    ),
+                )
+                .join(Product, Product.category_id == Category.id)
+                .join(StockEntryProduct, StockEntryProduct.product_id == Product.id)
+                .join(StockEntry, StockEntry.id == StockEntryProduct.stock_entry_id)
+                .where(
+                    Category.user_id == uuid.UUID(user_id),
+                    StockEntry.status == StockEntryStatus.OPEN,
+                )
+                .group_by(Category.id, Category.name, Category.color)
+                .order_by(
+                    func.sum(StockEntryProduct.unit_price * StockEntryProduct.quantity).desc()
+                )
+            )
+
+            if start_created_at:
+                query = query.where(StockEntryProduct.created_at >= start_created_at)
+            if end_created_at:
+                query = query.where(StockEntryProduct.created_at <= end_created_at)
         else:
             query = (
                 select(
