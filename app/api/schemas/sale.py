@@ -11,6 +11,7 @@ class SaleProductItem(BaseModel):
 
 
 class SaleCreate(BaseModel):
+    date: datetime
     products: list[SaleProductItem] = Field(..., min_length=1)
 
 
@@ -27,6 +28,7 @@ class SaleResponse(BaseModel):
     items_count: int = 0
     created_at: datetime
     updated_at: datetime
+    date: datetime
 
 
 class SaleBulkDelete(BaseModel):

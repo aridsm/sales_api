@@ -31,6 +31,8 @@ async def get_all_sales(
     search: str | None = None,
     start_total: float | None = Query(None),
     end_total: float | None = Query(None),
+    start_date: datetime | None = Query(None),
+    end_date: datetime | None = Query(None),
     start_created_at: datetime | None = Query(None),
     end_created_at: datetime | None = Query(None),
     product_id: List[UUID] | None = Query(None),
@@ -45,6 +47,10 @@ async def get_all_sales(
         query = query.where(Sale.total >= start_total)
     if end_total is not None:
         query = query.where(Sale.total <= end_total)
+    if start_date:
+        query = query.where(Sale.date >= start_date)
+    if end_date:
+        query = query.where(Sale.date <= end_date)
     if start_created_at:
         query = query.where(Sale.created_at >= start_created_at)
     if end_created_at:
@@ -100,7 +106,7 @@ async def create_sale(
     user: UserLoggedDep,
     service: SaleServiceDep,
 ):
-    return await service.create_sale_with_products(body.products, user.id)
+    return await service.create_sale_with_products(body.products, body.date, user.id)
 
 
 @router.post("/{sale_id}/cancel", response_model=SaleResponse)

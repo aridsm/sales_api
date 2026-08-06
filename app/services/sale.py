@@ -10,6 +10,7 @@ from app.api.schemas.sale import SaleProductItem
 from app.enums.sale import SaleStatus
 from sqlalchemy import Select, func
 from typing import Any
+from datetime import datetime
 from app.services.history import HistoryService
 from app.enums.history import ActionType, EntityType
 
@@ -49,15 +50,21 @@ class SaleService(BaseService[Sale]):
         res = await self.session.execute(query)
         row = res.mappings().first()
         if not row:
-            raise HTTPException(status_code=404, detail={"error": "errorEntityNotFound"})
-        
+            raise HTTPException(
+                status_code=404, detail={"error": "errorEntityNotFound"}
+            )
+
         sale_obj = row["Sale"]
-        sale_dict = sale_obj.model_dump() if hasattr(sale_obj, "model_dump") else sale_obj.dict()
+        sale_dict = (
+            sale_obj.model_dump()
+            if hasattr(sale_obj, "model_dump")
+            else sale_obj.dict()
+        )
         sale_dict["items_count"] = row.get("items_count", 0)
         return sale_dict
 
     async def create_sale_with_products(
-        self, items: list[SaleProductItem], user_id: uuid.UUID
+        self, items: list[SaleProductItem], date: datetime, user_id: uuid.UUID
     ) -> Sale:
         product_quantities: dict[uuid.UUID, int] = {}
         for item in items:
@@ -77,7 +84,9 @@ class SaleService(BaseService[Sale]):
 
         for pid in product_ids:
             if pid not in products:
-                raise HTTPException(status_code=404, detail={"error": "errorEntityNotFound"})
+                raise HTTPException(
+                    status_code=404, detail={"error": "errorEntityNotFound"}
+                )
 
         for pid, qty in product_quantities.items():
             product = products[pid]
@@ -94,7 +103,7 @@ class SaleService(BaseService[Sale]):
             products[pid].price * qty for pid, qty in product_quantities.items()
         )
 
-        sale = Sale(user_id=user_id, status=SaleStatus.DONE, total=total)
+        sale = Sale(user_id=user_id, status=SaleStatus.DONE, total=total, date=date)
         self.session.add(sale)
         await self.session.flush()
 
@@ -119,7 +128,7 @@ class SaleService(BaseService[Sale]):
             entity_type=EntityType.SALE,
             entity_id=sale.id,
             description=f"Venda #{sale.code} registrada no valor de R$ {f'{total:.2f}'.replace('.', ',')}.",
-            details={"total": total, "items_count": len(product_ids)}
+            details={"total": total, "items_count": len(product_ids)},
         )
 
         await self.session.commit()
@@ -131,7 +140,9 @@ class SaleService(BaseService[Sale]):
         sale = await self.get_by_id(sale_id, user_id=user_id)
 
         if sale.status == SaleStatus.CANCELED:
-            raise HTTPException(status_code=400, detail={"error": "errorSaleAlreadyCanceled"})
+            raise HTTPException(
+                status_code=400, detail={"error": "errorSaleAlreadyCanceled"}
+            )
 
         result = await self.session.execute(
             select(SaleProduct).where(SaleProduct.sale_id == sale_id)
@@ -141,7 +152,9 @@ class SaleService(BaseService[Sale]):
         product_ids = [sp.product_id for sp in sale_products]
 
         products_result = await self.session.execute(
-            select(Product).where(Product.id.in_(product_ids), Product.user_id == user_id)
+            select(Product).where(
+                Product.id.in_(product_ids), Product.user_id == user_id
+            )
         )
         products = {p.id: p for p in products_result.scalars().all()}
 
@@ -157,7 +170,7 @@ class SaleService(BaseService[Sale]):
             action_type=ActionType.CANCEL,
             entity_type=EntityType.SALE,
             entity_id=sale.id,
-            description=f"Venda #{sale.code} (R$ {f'{sale.total:.2f}'.replace('.', ',')}) cancelada."
+            description=f"Venda #{sale.code} (R$ {f'{sale.total:.2f}'.replace('.', ',')}) cancelada.",
         )
 
         await self.session.commit()
