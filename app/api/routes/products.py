@@ -33,6 +33,8 @@ async def get_all_products(
     end_price: float | None = Query(None),
     start_created_at: datetime | None = Query(None),
     end_created_at: datetime | None = Query(None),
+    start_stock_amount: int | None = Query(None),
+    end_stock_amount: int | None = Query(None),
 ):
 
     query = select(
@@ -49,6 +51,10 @@ async def get_all_products(
         query = query.where(Product.created_at >= start_created_at)
     if end_created_at:
         query = query.where(Product.created_at <= end_created_at)
+    if start_stock_amount is not None:
+        query = query.where(Product.stock_amount >= start_stock_amount)
+    if end_stock_amount is not None:
+        query = query.where(Product.stock_amount <= end_stock_amount)
 
     result = await service.get_all(
         query=query,
