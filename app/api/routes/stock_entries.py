@@ -13,7 +13,7 @@ from app.api.schemas.stock_entry import (
     StockEntryResponse,
     StockEntryBulkDelete,
 )
-from app.api.dependencies import UserLoggedDep, StockEntryServiceDep
+from app.api.dependencies import UserLoggedDep, CanEditDep, StockEntryServiceDep
 from app.api.utils.paginated_response import PaginatedResponse
 
 router = APIRouter(prefix="/stock_entries", tags=["stock_entries"])
@@ -36,7 +36,7 @@ async def get_all_stock_entries(
     product_id: List[UUID] | None = Query(None),
     category_id: List[UUID] | None = Query(None),
 ):
-    query = service.get_base_query(user_id=str(user.id))
+    query = service.get_base_query(company_id=str(user.company_id))
 
     if search:
         query = query.where(cast(StockEntry.code, String).ilike(f"%{search}%"))
@@ -75,7 +75,7 @@ async def get_all_stock_entries(
 
     result = await service.get_all(
         query=query,
-        user_id=str(user.id),
+        company_id=str(user.company_id),
         page=page,
         page_size=page_size,
         sort=sort,
@@ -91,7 +91,7 @@ async def get_stock_entry_by_id(
     user: UserLoggedDep,
     service: StockEntryServiceDep,
 ):
-    return await service.get_entry_with_details(id, str(user.id))
+    return await service.get_entry_with_details(id, company_id=str(user.company_id))
 
 
 @router.post(
@@ -99,34 +99,36 @@ async def get_stock_entry_by_id(
 )
 async def create_stock_entry(
     body: StockEntryCreate,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: StockEntryServiceDep,
 ):
-    return await service.create_entry_with_products(body.products, body.date, user.id)
+    return await service.create_entry_with_products(
+        body.products, body.date, user_id=user.id, company_id=user.company_id
+    )
 
 
 @router.post("/{id}/cancel", response_model=StockEntryResponse)
 async def cancel_stock_entry(
     id: UUID,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: StockEntryServiceDep,
 ):
-    return await service.cancel_entry(id, user.id)
+    return await service.cancel_entry(id, user_id=user.id, company_id=user.company_id)
 
 
 @router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_bulk_stock_entries(
     body: StockEntryBulkDelete,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: StockEntryServiceDep,
 ):
-    await service.delete_bulk(body.ids, str(user.id))
+    await service.delete_bulk(body.ids, company_id=str(user.company_id))
 
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_stock_entry(
     id: UUID,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: StockEntryServiceDep,
 ):
-    await service.delete(id, str(user.id))
+    await service.delete(id, company_id=str(user.company_id))

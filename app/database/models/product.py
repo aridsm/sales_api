@@ -16,6 +16,7 @@ class Product(SQLModel, table=True):
     stock_amount: int = Field(default=0, nullable=False)
     sold_amount: int = Field(default=0, nullable=False)
     user_id: uuid.UUID = Field(foreign_key="users.id", nullable=False, index=True)
+    company_id: uuid.UUID = Field(foreign_key="companies.id", nullable=False, index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False, sa_type=DateTime(timezone=True))
 
     # def __repr__(self):

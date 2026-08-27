@@ -12,7 +12,7 @@ class StockEntryProductService(BaseService[StockEntryProduct]):
     def __init__(self, session: AsyncSession):
         super().__init__(StockEntryProduct, session)
 
-    def get_base_query(self, user_id: str) -> Select:
+    def get_base_query(self, company_id: str | uuid.UUID) -> Select:
         return (
             select(
                 StockEntryProduct,
@@ -22,12 +22,12 @@ class StockEntryProductService(BaseService[StockEntryProduct]):
             )
             .join(Product, Product.id == StockEntryProduct.product_id)
             .join(Category, Category.id == Product.category_id)
-            .where(StockEntryProduct.user_id == user_id)
+            .where(StockEntryProduct.company_id == company_id)
         )
 
     async def get_all(
-        self, query: Select | None = None, user_id: str | None = None, **kwargs
+        self, query: Select | None = None, company_id: str | uuid.UUID | None = None, **kwargs
     ):
         if query is None:
-            query = self.get_base_query(user_id=user_id)
-        return await super().get_all(query=query, user_id=user_id, **kwargs)
+            query = self.get_base_query(company_id=company_id)
+        return await super().get_all(query=query, company_id=company_id, **kwargs)

@@ -12,7 +12,7 @@ from app.api.schemas.category import (
     CategoryBulkDelete,
     CategoryAmountsWrapper,
 )
-from app.api.dependencies import UserLoggedDep, CategoryServiceDep
+from app.api.dependencies import UserLoggedDep, CategoryServiceDep, CanEditDep
 from app.api.utils.paginated_response import PaginatedResponse
 from datetime import datetime
 
@@ -38,7 +38,7 @@ async def get_all_categories(
     start_price: float | None = Query(None),
     end_price: float | None = Query(None),
 ):
-    base_query = service.get_base_query_with_count(str(user.id))
+    base_query = service.get_base_query_with_count(str(user.company_id))
 
     if product_search:
         product_exists = exists(
@@ -72,7 +72,7 @@ async def get_all_categories(
         base_query = base_query.where(product_filter_exists)
 
     result = await service.get_all(
-        user_id=str(user.id),
+        company_id=str(user.company_id),
         query=base_query,
         page=page,
         page_size=page_size,
@@ -96,7 +96,7 @@ async def get_categories_amounts(
     end_created_at: datetime | None = Query(None),
 ):
     return await service.get_amounts(
-        str(user.id),
+        str(user.company_id),
         type=type,
         start_created_at=start_created_at,
         end_created_at=end_created_at,
@@ -109,41 +109,45 @@ async def get_category_by_id(
     user: UserLoggedDep,
     service: CategoryServiceDep,
 ):
-    return await service.get_by_id(category_id, str(user.id))
+    return await service.get_by_id(category_id, company_id=str(user.company_id))
 
 
 @router.post("/", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
 async def create_category(
     body: CategoryCreate,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: CategoryServiceDep,
 ):
-    return await service.create(Category(**body.model_dump(), user_id=user.id), user.id)
+    return await service.create(
+        Category(**body.model_dump(), user_id=user.id, company_id=user.company_id),
+        user_id=user.id,
+        company_id=user.company_id,
+    )
 
 
 @router.patch("/{category_id}", response_model=CategoryResponse)
 async def update_category(
     category_id: UUID,
     body: CategoryUpdate,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: CategoryServiceDep,
 ):
-    return await service.update(category_id, body, user.id)
+    return await service.update(category_id, body, company_id=user.company_id)
 
 
 @router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_bulk_categories(
     body: CategoryBulkDelete,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: CategoryServiceDep,
 ):
-    await service.delete_bulk(body.ids, str(user.id))
+    await service.delete_bulk(body.ids, company_id=str(user.company_id))
 
 
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_category(
     category_id: UUID,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: CategoryServiceDep,
 ):
-    await service.delete(category_id, str(user.id))
+    await service.delete(category_id, company_id=str(user.company_id))

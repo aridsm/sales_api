@@ -7,3 +7,6 @@ from .sale_product import SaleProduct
 from .history import History
 from .stock_entry import StockEntry
 from .stock_entry_product import StockEntryProduct
+from .company import Company
+from .company_user import CompanyUser
+from .company_invitation import CompanyInvitation

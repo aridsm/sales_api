@@ -22,6 +22,7 @@ class StockEntry(SQLModel, table=True):
     total: float = Field(default=0, nullable=False)
     date: datetime = Field(nullable=False, sa_type=DateTime(timezone=True), index=True)
     user_id: uuid.UUID = Field(foreign_key="users.id", nullable=False, index=True)
+    company_id: uuid.UUID = Field(foreign_key="companies.id", nullable=False, index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False, sa_type=DateTime(timezone=True))
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

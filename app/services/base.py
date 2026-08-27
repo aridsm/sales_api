@@ -4,6 +4,7 @@ import uuid
 from fastapi import HTTPException
 from sqlalchemy import Select, and_, or_, case, delete
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.expression import false as sa_false
 from sqlmodel import func, select
 
 from app.api.utils.paginated_response import PaginatedResponse
@@ -32,6 +33,7 @@ class BaseService(Generic[T]):
         get_all: bool = False,
         search: str | None = None,
         sort: str | None = None,
+        company_id: uuid.UUID | str | None = None,
         user_id: uuid.UUID | str | None = None,
         include_ids: list[uuid.UUID] | None = None,
         exclude_ids: list[uuid.UUID] | None = None,
@@ -40,9 +42,14 @@ class BaseService(Generic[T]):
         if query is None:
             query = select(self.model)
 
-        model_user_id = getattr(self.model, "user_id", None)
-        if user_id and model_user_id is not None:
-            query = query.where(model_user_id == user_id)
+        # Filter by company_id (tenant isolation)
+        model_company_id = getattr(self.model, "company_id", None)
+        if model_company_id is not None:
+            if company_id:
+                query = query.where(model_company_id == company_id)
+            else:
+                # No company selected — return empty results
+                query = query.where(sa_false())
 
         soft_filters = []
         if search and hasattr(self.model, "name"):
@@ -125,14 +132,15 @@ class BaseService(Generic[T]):
     async def get_by_id(
         self,
         id: uuid.UUID,
+        company_id: uuid.UUID | str | None = None,
         user_id: uuid.UUID | str | None = None,
         query: Select | None = None,
     ) -> T:
         if query is None:
             query = select(self.model).where(self.model.id == id)
-            model_user_id = getattr(self.model, "user_id", None)
-            if user_id and model_user_id is not None:
-                query = query.where(model_user_id == user_id)
+            model_company_id = getattr(self.model, "company_id", None)
+            if company_id and model_company_id is not None:
+                query = query.where(model_company_id == company_id)
 
         res = await self.session.execute(query)
         row = res.first()
@@ -142,7 +150,12 @@ class BaseService(Generic[T]):
 
         return row[0]
 
-    async def create(self, item: T, user_id: uuid.UUID | None = None) -> T:
+    async def create(
+        self, item: T, user_id: uuid.UUID | None = None, company_id: uuid.UUID | None = None
+    ) -> T:
+        model_company_id = getattr(self.model, "company_id", None)
+        if company_id and model_company_id is not None:
+            setattr(item, "company_id", company_id)
         model_user_id = getattr(self.model, "user_id", None)
         if user_id and model_user_id is not None:
             setattr(item, "user_id", user_id)
@@ -152,9 +165,9 @@ class BaseService(Generic[T]):
         return item
 
     async def update(
-        self, id: uuid.UUID, diff: Any, user_id: uuid.UUID | None = None
+        self, id: uuid.UUID, diff: Any, company_id: uuid.UUID | None = None, user_id: uuid.UUID | None = None
     ) -> Optional[T]:
-        item_db = await self.get_by_id(id, user_id=user_id)
+        item_db = await self.get_by_id(id, company_id=company_id)
 
         if isinstance(diff, dict):
             body = diff
@@ -167,27 +180,27 @@ class BaseService(Generic[T]):
         await self.session.refresh(item_db)
         return item_db
 
-    async def delete(self, id: uuid.UUID, user_id: uuid.UUID | str | None = None):
-        item_db = await self.get_by_id(id, user_id=user_id)
+    async def delete(self, id: uuid.UUID, company_id: uuid.UUID | str | None = None, user_id: uuid.UUID | str | None = None):
+        item_db = await self.get_by_id(id, company_id=company_id)
         await self.session.delete(item_db)
         await self.session.commit()
 
     async def delete_bulk(
-        self, ids: list[uuid.UUID], user_id: uuid.UUID | str | None = None
+        self, ids: list[uuid.UUID], company_id: uuid.UUID | str | None = None, user_id: uuid.UUID | str | None = None
     ):
         query = delete(self.model).where(self.model.id.in_(ids))
-        model_user_id = getattr(self.model, "user_id", None)
-        if user_id and model_user_id is not None:
-            query = query.where(model_user_id == user_id)
+        model_company_id = getattr(self.model, "company_id", None)
+        if company_id and model_company_id is not None:
+            query = query.where(model_company_id == company_id)
 
         await self.session.execute(query)
         await self.session.commit()
 
     async def exists(
-        self, id: uuid.UUID, user_id: uuid.UUID | str | None = None
+        self, id: uuid.UUID, company_id: uuid.UUID | str | None = None, user_id: uuid.UUID | str | None = None
     ) -> bool:
         query = select(self.model).where(self.model.id == id)
-        model_user_id = getattr(self.model, "user_id", None)
-        if user_id and model_user_id is not None:
-            query = query.where(model_user_id == user_id)
+        model_company_id = getattr(self.model, "company_id", None)
+        if company_id and model_company_id is not None:
+            query = query.where(model_company_id == company_id)
         return (await self.session.execute(query)).scalar_one_or_none() is not None

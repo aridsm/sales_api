@@ -31,7 +31,7 @@ class DashboardService:
 
     async def get_chart_data(
         self,
-        user_id: str,
+        company_id: str,
         frequency: FrequencyEnum,
         count: int = 7,
         previous: int = 0,
@@ -111,7 +111,7 @@ class DashboardService:
         global_end_utc = global_end_local.astimezone(timezone.utc)
 
         sale_query = select(Sale.created_at, Sale.total).where(
-            Sale.user_id == uuid.UUID(user_id),
+            Sale.company_id == uuid.UUID(company_id),
             Sale.status == SaleStatus.DONE,
             Sale.created_at >= global_start_utc,
             Sale.created_at <= global_end_utc,
@@ -128,7 +128,7 @@ class DashboardService:
                     break
 
         expense_query = select(OtherExpense.date, OtherExpense.value).where(
-            OtherExpense.user_id == uuid.UUID(user_id),
+            OtherExpense.company_id == uuid.UUID(company_id),
             OtherExpense.date >= global_start_utc,
             OtherExpense.date <= global_end_utc,
         )
@@ -144,7 +144,7 @@ class DashboardService:
                     break
 
         stock_entry_query = select(StockEntry.date, StockEntry.total).where(
-            StockEntry.user_id == uuid.UUID(user_id),
+            StockEntry.company_id == uuid.UUID(company_id),
             StockEntry.status == StockEntryStatus.OPEN,
             StockEntry.date >= global_start_utc,
             StockEntry.date <= global_end_utc,
@@ -169,13 +169,13 @@ class DashboardService:
 
     async def get_budgets(
         self,
-        user_id: str,
+        company_id: str,
         start_date: datetime | None = None,
         end_date: datetime | None = None,
     ) -> dict:
 
         total_sales_query = select(func.coalesce(func.sum(Sale.total), 0)).where(
-            Sale.user_id == uuid.UUID(user_id),
+            Sale.company_id == uuid.UUID(company_id),
             Sale.status == SaleStatus.DONE,
         )
         total_sales_result = await self.session.execute(total_sales_query)
@@ -184,7 +184,7 @@ class DashboardService:
         total_expenses_query = select(
             func.coalesce(func.sum(OtherExpense.value), 0)
         ).where(
-            OtherExpense.user_id == uuid.UUID(user_id),
+            OtherExpense.company_id == uuid.UUID(company_id),
         )
         total_expenses_result = await self.session.execute(total_expenses_query)
         total_expenses = float(total_expenses_result.scalar())
@@ -192,7 +192,7 @@ class DashboardService:
         total_stock_entries_query = select(
             func.coalesce(func.sum(StockEntry.total), 0)
         ).where(
-            StockEntry.user_id == uuid.UUID(user_id),
+            StockEntry.company_id == uuid.UUID(company_id),
             StockEntry.status == StockEntryStatus.OPEN,
         )
         total_stock_entries_result = await self.session.execute(total_stock_entries_query)
@@ -201,7 +201,7 @@ class DashboardService:
         current_balance = total_sales - total_expenses
 
         revenue_query = select(func.coalesce(func.sum(Sale.total), 0)).where(
-            Sale.user_id == uuid.UUID(user_id),
+            Sale.company_id == uuid.UUID(company_id),
             Sale.status == SaleStatus.DONE,
         )
         if start_date:
@@ -213,7 +213,7 @@ class DashboardService:
         revenue = float(revenue_result.scalar())
 
         expenses_query = select(func.coalesce(func.sum(OtherExpense.value), 0)).where(
-            OtherExpense.user_id == uuid.UUID(user_id),
+            OtherExpense.company_id == uuid.UUID(company_id),
         )
         if start_date:
             expenses_query = expenses_query.where(OtherExpense.date >= start_date)
@@ -224,7 +224,7 @@ class DashboardService:
         expenses = float(expenses_result.scalar())
 
         stock_expenses_query = select(func.coalesce(func.sum(StockEntry.total), 0)).where(
-            StockEntry.user_id == uuid.UUID(user_id),
+            StockEntry.company_id == uuid.UUID(company_id),
             StockEntry.status == StockEntryStatus.OPEN,
         )
         if start_date:

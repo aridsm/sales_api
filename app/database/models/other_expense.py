@@ -17,6 +17,7 @@ class OtherExpense(SQLModel, table=True):
     date: datetime = Field(nullable=False, sa_type=DateTime(timezone=True), index=True)
     category_id: uuid.UUID = Field(foreign_key="categories.id", nullable=False, index=True)
     user_id: uuid.UUID = Field(foreign_key="users.id", nullable=False, index=True)
+    company_id: uuid.UUID = Field(foreign_key="companies.id", nullable=False, index=True)
 
     # def __repr__(self):
     #     return f"<OtherExpense(id={self.id}, name={self.name}, category_id={self.category_id}, value={self.value})>"

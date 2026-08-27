@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
 from uuid import UUID
 from typing import Optional
+from app.enums.company import CompanyPermission
 
 
 class UserBase(BaseModel):
@@ -21,6 +22,8 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     id: UUID
     created_at: datetime
+    company_id: UUID | None = None
+    permission: CompanyPermission | None = None
 
 
 class TokenResponse(BaseModel):

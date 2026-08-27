@@ -5,7 +5,7 @@ from app.api.schemas.stock_entry_product import (
     StockEntryProductResponse,
     StockEntryProductBulkDelete,
 )
-from app.api.dependencies import UserLoggedDep, StockEntryProductServiceDep
+from app.api.dependencies import UserLoggedDep, CanEditDep, StockEntryProductServiceDep
 from app.api.utils.paginated_response import PaginatedResponse
 
 router = APIRouter(prefix="/stock_entry_products", tags=["stock_entry_products"])
@@ -21,7 +21,7 @@ async def get_all_stock_entry_products(
     page_size: int = 20,
 ):
     result = await service.get_all(
-        user_id=str(user.id),
+        company_id=str(user.company_id),
         page=page,
         page_size=page_size,
         stock_entry_id=stock_entry_id,
@@ -36,22 +36,22 @@ async def get_stock_entry_product_by_id(
     user: UserLoggedDep,
     service: StockEntryProductServiceDep,
 ):
-    return await service.get_by_id(id, str(user.id))
+    return await service.get_by_id(id, company_id=str(user.company_id))
 
 
 @router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_bulk_stock_entry_products(
     body: StockEntryProductBulkDelete,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: StockEntryProductServiceDep,
 ):
-    await service.delete_bulk(body.ids, str(user.id))
+    await service.delete_bulk(body.ids, company_id=str(user.company_id))
 
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_stock_entry_product(
     id: uuid.UUID,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: StockEntryProductServiceDep,
 ):
-    await service.delete(id, str(user.id))
+    await service.delete(id, company_id=str(user.company_id))

@@ -1,7 +1,6 @@
 import uuid
 from uuid import UUID
 from datetime import datetime
-
 from fastapi import APIRouter, status, Query
 from sqlmodel import select
 from app.api.schemas.product import (
@@ -13,6 +12,7 @@ from app.api.schemas.product import (
 from app.api.dependencies import (
     UserLoggedDep,
     ProductServiceDep,
+    CanEditDep,
 )
 from app.api.utils.paginated_response import PaginatedResponse
 from app.database.models.category import Category
@@ -58,7 +58,7 @@ async def get_all_products(
 
     result = await service.get_all(
         query=query,
-        user_id=str(user.id),
+        company_id=str(user.company_id),
         page=page,
         page_size=page_size,
         search=search,
@@ -73,41 +73,45 @@ async def get_product_by_id(
     user: UserLoggedDep,
     service: ProductServiceDep,
 ):
-    return await service.get_by_id(product_id, str(user.id))
+    return await service.get_by_id(product_id, company_id=str(user.company_id))
 
 
 @router.post("/", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
 async def create_product(
     body: ProductCreate,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: ProductServiceDep,
 ):
-    return await service.create(Product(user_id=user.id, **body.model_dump()), user.id)
+    return await service.create(
+        Product(user_id=user.id, company_id=user.company_id, **body.model_dump()),
+        user_id=user.id,
+        company_id=user.company_id,
+    )
 
 
 @router.patch("/{product_id}", response_model=ProductResponse)
 async def update_product(
     product_id: uuid.UUID,
     body: ProductUpdate,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: ProductServiceDep,
 ):
-    return await service.update(product_id, body, user.id)
+    return await service.update(product_id, body, company_id=user.company_id)
 
 
 @router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_bulk_products(
     body: ProductBulkDelete,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: ProductServiceDep,
 ):
-    await service.delete_bulk(body.ids, str(user.id))
+    await service.delete_bulk(body.ids, company_id=str(user.company_id))
 
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_product(
     product_id: uuid.UUID,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: ProductServiceDep,
 ):
-    await service.delete(product_id, str(user.id))
+    await service.delete(product_id, company_id=str(user.company_id))

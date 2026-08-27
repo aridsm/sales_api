@@ -21,6 +21,7 @@ class Sale(SQLModel, table=True):
     status: SaleStatus = Field(default=SaleStatus.DONE, nullable=False, index=True)
     total: float = Field(default=0, nullable=False)
     user_id: uuid.UUID = Field(foreign_key="users.id", nullable=False, index=True)
+    company_id: uuid.UUID = Field(foreign_key="companies.id", nullable=False, index=True)
     date: datetime = Field(nullable=False, sa_type=DateTime(timezone=True), index=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

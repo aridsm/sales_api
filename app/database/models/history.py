@@ -9,6 +9,7 @@ class History(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: uuid.UUID = Field(foreign_key="users.id", nullable=False, index=True)
+    company_id: uuid.UUID = Field(foreign_key="companies.id", nullable=False, index=True)
 
     action_type: int = Field(nullable=False)
     entity_type: int = Field(nullable=False)

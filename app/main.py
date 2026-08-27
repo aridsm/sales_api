@@ -1,8 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.config import settings
 from app.api.router import router
+from app.api.websocket import ws_manager
+from app.api.tokens import decode_jwt_token
 
 
 @asynccontextmanager
@@ -27,6 +29,27 @@ app.add_middleware(
 )
 
 app.include_router(router)
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
+    if not token:
+        await websocket.close(code=4001)
+        return
+
+    try:
+        payload = decode_jwt_token(token)
+        user_id = payload.user_id
+    except Exception:
+        await websocket.close(code=4001)
+        return
+
+    await ws_manager.connect(websocket, user_id)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket, user_id)
 
 
 @app.get("/", tags=["root"])

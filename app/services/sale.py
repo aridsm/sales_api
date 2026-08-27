@@ -20,33 +20,33 @@ class SaleService(BaseService[Sale]):
         super().__init__(Sale, session)
         self.history = HistoryService(session)
 
-    def get_base_query(self, user_id: str) -> Select:
+    def get_base_query(self, company_id: str | uuid.UUID) -> Select:
         return (
             select(Sale, func.count(SaleProduct.id).label("items_count"))
             .outerjoin(SaleProduct, Sale.id == SaleProduct.sale_id)
-            .where(Sale.user_id == user_id)
+            .where(Sale.company_id == company_id)
             .group_by(Sale.id)
         )
 
     async def get_all(
-        self, query: Select | None = None, user_id: str | None = None, **kwargs
+        self, query: Select | None = None, company_id: str | uuid.UUID | None = None, **kwargs
     ):
         if query is None:
-            query = self.get_base_query(user_id=user_id)
-        return await super().get_all(query=query, user_id=user_id, **kwargs)
+            query = self.get_base_query(company_id=company_id)
+        return await super().get_all(query=query, company_id=company_id, **kwargs)
 
     async def get_by_id(
         self,
         id: uuid.UUID,
-        user_id: uuid.UUID | str | None = None,
+        company_id: uuid.UUID | str | None = None,
         query: Select | None = None,
     ) -> Any:
         if query is None:
-            query = self.get_base_query(user_id=user_id).where(Sale.id == id)
-        return await super().get_by_id(id, user_id=user_id, query=query)
+            query = self.get_base_query(company_id=company_id).where(Sale.id == id)
+        return await super().get_by_id(id, company_id=company_id, query=query)
 
-    async def get_sale_with_details(self, sale_id: uuid.UUID, user_id: str) -> dict:
-        query = self.get_base_query(user_id=user_id).where(Sale.id == sale_id)
+    async def get_sale_with_details(self, sale_id: uuid.UUID, company_id: str | uuid.UUID) -> dict:
+        query = self.get_base_query(company_id=company_id).where(Sale.id == sale_id)
         res = await self.session.execute(query)
         row = res.mappings().first()
         if not row:
@@ -64,7 +64,11 @@ class SaleService(BaseService[Sale]):
         return sale_dict
 
     async def create_sale_with_products(
-        self, items: list[SaleProductItem], date: datetime, user_id: uuid.UUID
+        self,
+        items: list[SaleProductItem],
+        date: datetime,
+        user_id: uuid.UUID,
+        company_id: uuid.UUID,
     ) -> Sale:
         product_quantities: dict[uuid.UUID, int] = {}
         for item in items:
@@ -76,7 +80,7 @@ class SaleService(BaseService[Sale]):
         result = await self.session.execute(
             select(Product).where(
                 Product.id.in_(product_ids),
-                Product.user_id == user_id,
+                Product.company_id == company_id,
             )
         )
 
@@ -103,7 +107,13 @@ class SaleService(BaseService[Sale]):
             products[pid].price * qty for pid, qty in product_quantities.items()
         )
 
-        sale = Sale(user_id=user_id, status=SaleStatus.DONE, total=total, date=date)
+        sale = Sale(
+            user_id=user_id,
+            company_id=company_id,
+            status=SaleStatus.DONE,
+            total=total,
+            date=date,
+        )
         self.session.add(sale)
         await self.session.flush()
 
@@ -114,6 +124,7 @@ class SaleService(BaseService[Sale]):
                 sale_id=sale.id,
                 product_id=pid,
                 user_id=user_id,
+                company_id=company_id,
                 quantity=qty,
                 unit_price=product.price,
             )
@@ -124,6 +135,7 @@ class SaleService(BaseService[Sale]):
 
         self.history.log_action(
             user_id=user_id,
+            company_id=company_id,
             action_type=ActionType.CREATE,
             entity_type=EntityType.SALE,
             entity_id=sale.id,
@@ -134,10 +146,12 @@ class SaleService(BaseService[Sale]):
         await self.session.commit()
         await self.session.refresh(sale)
 
-        return await self.get_by_id(sale.id, user_id=user_id)
+        return await self.get_by_id(sale.id, company_id=company_id)
 
-    async def cancel_sale(self, sale_id: uuid.UUID, user_id: uuid.UUID) -> Sale:
-        sale = await self.get_by_id(sale_id, user_id=user_id)
+    async def cancel_sale(
+        self, sale_id: uuid.UUID, user_id: uuid.UUID, company_id: uuid.UUID
+    ) -> Sale:
+        sale = await self.get_by_id(sale_id, company_id=company_id)
 
         if sale.status == SaleStatus.CANCELED:
             raise HTTPException(
@@ -153,7 +167,7 @@ class SaleService(BaseService[Sale]):
 
         products_result = await self.session.execute(
             select(Product).where(
-                Product.id.in_(product_ids), Product.user_id == user_id
+                Product.id.in_(product_ids), Product.company_id == company_id
             )
         )
         products = {p.id: p for p in products_result.scalars().all()}
@@ -167,6 +181,7 @@ class SaleService(BaseService[Sale]):
 
         self.history.log_action(
             user_id=user_id,
+            company_id=company_id,
             action_type=ActionType.CANCEL,
             entity_type=EntityType.SALE,
             entity_id=sale.id,
@@ -176,4 +191,4 @@ class SaleService(BaseService[Sale]):
         await self.session.commit()
         await self.session.refresh(sale)
 
-        return await self.get_by_id(sale.id, user_id=user_id)
+        return await self.get_by_id(sale.id, company_id=company_id)

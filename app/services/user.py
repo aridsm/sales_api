@@ -106,6 +106,20 @@ class UserService:
         query = select(User).where(User.email == email)
         return (await self.session.execute(query)).scalar_one_or_none()
 
+    async def update(self, id: uuid.UUID, data: dict) -> User:
+        user = await self.get_by_id(id)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "errorUserNotFound"},
+            )
+        for key, value in data.items():
+            if value is not None:
+                setattr(user, key, value)
+        await self.session.commit()
+        await self.session.refresh(user)
+        return user
+
     async def delete(self, id: uuid.UUID):
         user = await self.get_by_id(id)
         if user is None:

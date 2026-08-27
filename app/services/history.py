@@ -17,14 +17,18 @@ class HistoryService(BaseService[History]):
         action_type: ActionType,
         entity_type: EntityType,
         description: str,
+        company_id: uuid.UUID | str | None = None,
         entity_id: uuid.UUID | None = None,
         details: dict | None = None,
     ):
         if isinstance(user_id, str):
             user_id = uuid.UUID(user_id)
+        if isinstance(company_id, str):
+            company_id = uuid.UUID(company_id)
 
         history = History(
             user_id=user_id,
+            company_id=company_id,
             action_type=action_type.value,
             entity_type=entity_type.value,
             entity_id=entity_id,
@@ -35,7 +39,7 @@ class HistoryService(BaseService[History]):
 
     async def get_recent_history(
         self,
-        user_id: str,
+        company_id: str,
         page: int = 1,
         page_size: int = 20,
         search: str | None = None,
@@ -43,7 +47,7 @@ class HistoryService(BaseService[History]):
         end_created_at: datetime | None = None,
         **kwargs,
     ):
-        query = select(History).where(History.user_id == uuid.UUID(user_id))
+        query = select(History).where(History.company_id == uuid.UUID(company_id))
         if search:
             query = query.where(History.description.ilike(f"%{search}%"))
 
@@ -54,5 +58,5 @@ class HistoryService(BaseService[History]):
 
         query = query.order_by(History.created_at.desc())
         return await super().get_all(
-            query=query, user_id=user_id, page=page, page_size=page_size, **kwargs
+            query=query, company_id=company_id, page=page, page_size=page_size, **kwargs
         )

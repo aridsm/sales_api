@@ -13,7 +13,7 @@ from app.api.schemas.sale import (
     SaleResponse,
     SaleBulkDelete,
 )
-from app.api.dependencies import UserLoggedDep, SaleServiceDep
+from app.api.dependencies import UserLoggedDep, CanEditDep, SaleServiceDep
 from app.api.utils.paginated_response import PaginatedResponse
 
 router = APIRouter(prefix="/sales", tags=["sales"])
@@ -38,7 +38,7 @@ async def get_all_sales(
     product_id: List[UUID] | None = Query(None),
     category_id: List[UUID] | None = Query(None),
 ):
-    query = service.get_base_query(user_id=str(user.id))
+    query = service.get_base_query(company_id=str(user.company_id))
 
     if search:
         query = query.where(cast(Sale.code, String).ilike(f"%{search}%"))
@@ -81,7 +81,7 @@ async def get_all_sales(
 
     result = await service.get_all(
         query=query,
-        user_id=str(user.id),
+        company_id=str(user.company_id),
         page=page,
         page_size=page_size,
         sort=sort,
@@ -97,40 +97,44 @@ async def get_sale_by_id(
     user: UserLoggedDep,
     service: SaleServiceDep,
 ):
-    return await service.get_sale_with_details(sale_id, str(user.id))
+    return await service.get_sale_with_details(sale_id, company_id=str(user.company_id))
 
 
 @router.post("/", response_model=SaleResponse, status_code=status.HTTP_201_CREATED)
 async def create_sale(
     body: SaleCreate,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: SaleServiceDep,
 ):
-    return await service.create_sale_with_products(body.products, body.date, user.id)
+    return await service.create_sale_with_products(
+        body.products, body.date, user_id=user.id, company_id=user.company_id
+    )
 
 
 @router.post("/{sale_id}/cancel", response_model=SaleResponse)
 async def cancel_sale(
     sale_id: UUID,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: SaleServiceDep,
 ):
-    return await service.cancel_sale(sale_id, user.id)
+    return await service.cancel_sale(
+        sale_id, user_id=user.id, company_id=user.company_id
+    )
 
 
 @router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_bulk_sales(
     body: SaleBulkDelete,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: SaleServiceDep,
 ):
-    await service.delete_bulk(body.ids, str(user.id))
+    await service.delete_bulk(body.ids, company_id=str(user.company_id))
 
 
 @router.delete("/{sale_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_sale(
     sale_id: UUID,
-    user: UserLoggedDep,
+    user: CanEditDep,
     service: SaleServiceDep,
 ):
-    await service.delete(sale_id, str(user.id))
+    await service.delete(sale_id, company_id=str(user.company_id))

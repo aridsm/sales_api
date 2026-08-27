@@ -19,7 +19,7 @@ async def get_chart_data(
 ):
 
     return await service.get_chart_data(
-        user_id=str(user.id),
+        company_id=str(user.company_id),
         frequency=frequency,
         count=count,
         previous=previous,
@@ -35,7 +35,7 @@ async def get_budgets(
     end_date: datetime | None = Query(None),
 ):
     return await service.get_budgets(
-        user_id=str(user.id),
+        company_id=str(user.company_id),
         start_date=start_date,
         end_date=end_date,
     )
