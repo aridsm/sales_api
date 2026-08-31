@@ -110,11 +110,11 @@ class DashboardService:
         global_start_utc = global_start_local.astimezone(timezone.utc)
         global_end_utc = global_end_local.astimezone(timezone.utc)
 
-        sale_query = select(Sale.created_at, Sale.total).where(
+        sale_query = select(Sale.date, Sale.total).where(
             Sale.company_id == uuid.UUID(company_id),
             Sale.status == SaleStatus.DONE,
-            Sale.created_at >= global_start_utc,
-            Sale.created_at <= global_end_utc,
+            Sale.date >= global_start_utc,
+            Sale.date <= global_end_utc,
         )
         sales_result = await self.session.execute(sale_query)
         sales = sales_result.all()
@@ -205,9 +205,9 @@ class DashboardService:
             Sale.status == SaleStatus.DONE,
         )
         if start_date:
-            revenue_query = revenue_query.where(Sale.created_at >= start_date)
+            revenue_query = revenue_query.where(Sale.date >= start_date)
         if end_date:
-            revenue_query = revenue_query.where(Sale.created_at <= end_date)
+            revenue_query = revenue_query.where(Sale.date <= end_date)
 
         revenue_result = await self.session.execute(revenue_query)
         revenue = float(revenue_result.scalar())

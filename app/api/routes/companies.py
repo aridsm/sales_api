@@ -1,6 +1,6 @@
 from uuid import UUID
 from fastapi import APIRouter, status, Query
-
+from typing import List
 from app.api.schemas.company import (
     CompanyCreate,
     CompanyResponse,
@@ -17,6 +17,7 @@ from app.api.dependencies import (
     CompanyServiceDep,
 )
 from app.api.utils.paginated_response import PaginatedResponse
+from app.enums.company import InvitationStatus
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
@@ -78,7 +79,24 @@ async def get_company_users(
     )
 
 
-@router.post("/{company_id}/users", status_code=status.HTTP_201_CREATED)
+@router.get(
+    "/{company_id}/invitations",
+    response_model=List[CompanyInvitationResponse],
+)
+async def get_invitations(
+    company_id: UUID,
+    user: UserLoggedDep,
+    service: CompanyServiceDep,
+    status: InvitationStatus | None = None,
+):
+    return await service.get_company_invitations(company_id, user.id, status=status)
+
+
+@router.post(
+    "/{company_id}/users",
+    response_model=CompanyInvitationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def invite_user_to_company(
     company_id: UUID,
     body: CompanyUserAdd,
@@ -102,6 +120,7 @@ async def invite_user_to_company(
             "permission": body.permission.value,
         },
     )
+    return invitation
 
 
 @router.patch(
@@ -118,6 +137,15 @@ async def update_user_permission(
         company_id, target_user_id, body.permission, user.id
     )
     return cu
+
+
+@router.delete("/{company_id}/users/me", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_me_from_company(
+    company_id: UUID,
+    user: UserLoggedDep,
+    service: CompanyServiceDep,
+):
+    await service.remove_me(company_id, user.id)
 
 
 @router.delete(

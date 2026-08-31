@@ -10,8 +10,10 @@ class SaleProductItem(BaseModel):
     quantity: int = Field(..., gt=0)
 
 
+from datetime import timezone
+
 class SaleCreate(BaseModel):
-    date: datetime
+    date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     products: list[SaleProductItem] = Field(..., min_length=1)
 
 

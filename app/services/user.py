@@ -73,12 +73,6 @@ class UserService:
 
         user = await self.get_by_id(uuid.UUID(token_payload.user_id))
 
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail={"error": "errorUserNotFound"},
-            )
-
         new_access_token = create_access_token(
             email=user.email,
             user_id=user.id,
@@ -100,7 +94,15 @@ class UserService:
 
     async def get_by_id(self, id: uuid.UUID) -> User | None:
         query = select(User).where(User.id == id)
-        return (await self.session.execute(query)).scalar_one_or_none()
+        user = (await self.session.execute(query)).scalar_one_or_none()
+
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "errorUserNotFound"},
+            )
+
+        return user
 
     async def get_by_email(self, email: str) -> User | None:
         query = select(User).where(User.email == email)
@@ -108,25 +110,18 @@ class UserService:
 
     async def update(self, id: uuid.UUID, data: dict) -> User:
         user = await self.get_by_id(id)
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail={"error": "errorUserNotFound"},
-            )
+
         for key, value in data.items():
             if value is not None:
                 setattr(user, key, value)
+
         await self.session.commit()
         await self.session.refresh(user)
         return user
 
     async def delete(self, id: uuid.UUID):
         user = await self.get_by_id(id)
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail={"error": "errorUserNotFound"},
-            )
+
         await self.session.delete(user)
         await self.session.commit()
 

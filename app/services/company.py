@@ -10,6 +10,7 @@ from app.database.models.company_invitation import CompanyInvitation
 from app.database.models.user import User
 from app.enums.company import CompanyPermission, InvitationStatus
 from app.api.utils.paginated_response import PaginatedResponse
+from sqlalchemy.orm import aliased
 
 
 class CompanyService:
@@ -108,6 +109,11 @@ class CompanyService:
         company = await self._get_company(company_id)
 
         await self.session.delete(company)
+
+        user_res = await self.session.execute(select(User).where(User.id == user_id))
+        user = user_res.scalar_one_or_none()
+        user.company_id = None
+
         await self.session.commit()
 
     async def get_company_users(
@@ -246,10 +252,55 @@ class CompanyService:
                 status_code=404, detail={"error": "errorEntityNotFound"}
             )
 
+        if company_user.permission == CompanyPermission.ADMIN and permission != CompanyPermission.ADMIN:
+            admins_res = await self.session.execute(
+                select(CompanyUser).where(
+                    CompanyUser.company_id == company_id,
+                    CompanyUser.permission == CompanyPermission.ADMIN,
+                    CompanyUser.user_id != target_user_id,
+                )
+            )
+            has_other_admins = admins_res.scalar_one_or_none()
+            if not has_other_admins:
+                raise HTTPException(
+                    status_code=400,
+                    detail={"error": "errorCannotHaveNoAdministrator"},
+                )
+
         company_user.permission = permission
         await self.session.commit()
         await self.session.refresh(company_user)
         return company_user
+
+    async def remove_me(self, company_id: uuid.UUID, user_id: uuid.UUID):
+        await self._check_user_in_company(company_id, user_id)
+
+        company_user = await self._get_company_user(company_id, user_id)
+
+        if company_user.permission == CompanyPermission.ADMIN:
+            res = await self.session.execute(
+                select(CompanyUser).where(
+                    CompanyUser.company_id == company_id,
+                    CompanyUser.permission == CompanyPermission.ADMIN,
+                    CompanyUser.user_id != user_id,
+                )
+            )
+
+            has_other_admins = res.scalar_one_or_none()
+
+            if not has_other_admins:
+                raise HTTPException(
+                    status_code=400,
+                    detail={"error": "errorCannotHaveNoAdministrator"},
+                )
+
+        user_res = await self.session.execute(select(User).where(User.id == user_id))
+        user = user_res.scalar_one_or_none()
+        if user and user.company_id == company_id:
+            user.company_id = None
+
+        await self.session.delete(company_user)
+        await self.session.commit()
 
     async def remove_user(
         self, company_id: uuid.UUID, target_user_id: uuid.UUID, user_id: uuid.UUID
@@ -262,17 +313,7 @@ class CompanyService:
                 detail={"error": "errorCannotRemoveSelf"},
             )
 
-        response = await self.session.execute(
-            select(CompanyUser).where(
-                CompanyUser.company_id == company_id,
-                CompanyUser.user_id == target_user_id,
-            )
-        )
-        company_user = response.scalar_one_or_none()
-        if not company_user:
-            raise HTTPException(
-                status_code=404, detail={"error": "errorEntityNotFound"}
-            )
+        company_user = await self._get_company_user(company_id, target_user_id)
 
         user_res = await self.session.execute(
             select(User).where(User.id == target_user_id)
@@ -283,6 +324,61 @@ class CompanyService:
 
         await self.session.delete(company_user)
         await self.session.commit()
+
+    async def _get_company_user(self, company_id: uuid.UUID, user_id: uuid.UUID):
+        response = await self.session.execute(
+            select(CompanyUser).where(
+                CompanyUser.company_id == company_id,
+                CompanyUser.user_id == user_id,
+            )
+        )
+        company_user = response.scalar_one_or_none()
+        if not company_user:
+            raise HTTPException(
+                status_code=404, detail={"error": "errorEntityNotFound"}
+            )
+        return company_user
+
+    async def get_company_invitations(
+        self,
+        company_id: uuid.UUID,
+        user_id: uuid.UUID,
+        status: InvitationStatus | None = None,
+    ):
+        await self._check_user_in_company(company_id, user_id)
+
+        UserInviter = aliased(User, name="user_inviter")
+        UserInvited = aliased(User, name="user_invited")
+
+        query = (
+            select(
+                CompanyInvitation,
+                UserInviter.name.label("invited_by_name"),
+                UserInviter.email.label("invited_by_email"),
+                UserInvited.name.label("user_name"),
+                UserInvited.email.label("user_email"),
+            )
+            .join(UserInviter, CompanyInvitation.invited_by == UserInviter.id)
+            .join(UserInvited, CompanyInvitation.user_id == UserInvited.id)
+            .where(CompanyInvitation.company_id == company_id)
+        )
+        if status:
+            query = query.where(CompanyInvitation.status == status)
+        query = query.order_by(CompanyInvitation.created_at.desc())
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        return [
+            {
+                **row[0].model_dump(),
+                "invited_by_name": row[1],
+                "invited_by_email": row[2],
+                "user_name": row[3],
+                "user_email": row[4],
+            }
+            for row in rows
+        ]
 
     async def get_user_invitations(self, user_id: uuid.UUID) -> list[dict]:
         query = (
@@ -308,6 +404,7 @@ class CompanyService:
                 "company_id": row[0].company_id,
                 "company_name": row[1],
                 "invited_by_name": row[2],
+                "user_id": row[0].user_id,
                 "permission": row[0].permission,
                 "status": row[0].status,
                 "created_at": row[0].created_at,
@@ -316,7 +413,7 @@ class CompanyService:
         ]
 
     async def accept_invitation(self, invitation_id: uuid.UUID, user_id: uuid.UUID):
-        invitation = self._get_invitation(invitation_id, user_id)
+        invitation = await self._get_invitation(invitation_id, user_id)
 
         company_user = CompanyUser(
             company_id=invitation.company_id,
@@ -335,18 +432,19 @@ class CompanyService:
         await self.session.commit()
 
     async def reject_invitation(self, invitation_id: uuid.UUID, user_id: uuid.UUID):
-        invitation = self._get_invitation(invitation_id, user_id)
+        invitation = await self._get_invitation(invitation_id, user_id)
         invitation.status = InvitationStatus.REJECTED
         await self.session.commit()
 
-    async def switch_company(self, user_id: uuid.UUID, company_id: uuid.UUID):
+    async def switch_company(self, user_id: uuid.UUID, company_id: uuid.UUID) -> CompanyPermission:
         response = await self.session.execute(
             select(CompanyUser).where(
                 CompanyUser.user_id == user_id,
                 CompanyUser.company_id == company_id,
             )
         )
-        if not response.scalar_one_or_none():
+        company_user = response.scalar_one_or_none()
+        if not company_user:
             raise HTTPException(
                 status_code=403,
                 detail={"error": "errorNotMemberOfCompany"},
@@ -359,6 +457,7 @@ class CompanyService:
 
         user.company_id = company_id
         await self.session.commit()
+        return company_user.permission
 
     async def _get_invitation(
         self, invitation_id: int, user_id: int
@@ -414,3 +513,4 @@ class CompanyService:
             raise HTTPException(
                 status_code=404, detail={"error": "errorEntityNotFound"}
             )
+        return company

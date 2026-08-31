@@ -42,8 +42,21 @@ async def session() -> AsyncSession:
 @pytest_asyncio.fixture
 async def test_user(session: AsyncSession):
     from app.database.models.user import User
+    from app.database.models.company import Company
+    from app.database.models.company_user import CompanyUser
+    from app.enums.company import CompanyPermission
     import uuid
     from datetime import datetime
+
+    company_id = uuid.uuid4()
+    company = Company(
+        id=company_id,
+        name="Test Company",
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+    session.add(company)
+    await session.flush()
 
     user_id = uuid.uuid4()
     user_email = f"test_{user_id}@example.com"
@@ -52,10 +65,21 @@ async def test_user(session: AsyncSession):
         name="Test User",
         email=user_email,
         password_hash="hashed_password",
+        company_id=company_id,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow()
     )
     session.add(db_user)
+    await session.flush()
+
+    company_user = CompanyUser(
+        company_id=company_id,
+        user_id=user_id,
+        permission=CompanyPermission.ADMIN,
+        created_at=datetime.utcnow()
+    )
+    session.add(company_user)
+
     await session.commit()
     await session.refresh(db_user)
 
@@ -63,6 +87,8 @@ async def test_user(session: AsyncSession):
         id=user_id,
         email=user_email,
         name="Test User",
+        company_id=company_id,
+        permission=CompanyPermission.ADMIN,
         created_at=db_user.created_at,
         updated_at=db_user.updated_at
     )

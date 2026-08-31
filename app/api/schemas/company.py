@@ -55,6 +55,10 @@ class CompanyInvitationResponse(BaseModel):
     company_id: UUID
     company_name: str | None = None
     invited_by_name: str | None = None
+    invited_by_email: str | None = None
+    user_id: UUID
+    user_name: str | None = None
+    user_email: str | None = None
     permission: CompanyPermission
     status: InvitationStatus
     created_at: datetime

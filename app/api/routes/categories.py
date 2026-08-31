@@ -132,7 +132,9 @@ async def update_category(
     user: CanEditDep,
     service: CategoryServiceDep,
 ):
-    return await service.update(category_id, body, company_id=user.company_id)
+    return await service.update(
+        category_id, body, company_id=user.company_id, user_id=user.id
+    )
 
 
 @router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
@@ -141,7 +143,9 @@ async def delete_bulk_categories(
     user: CanEditDep,
     service: CategoryServiceDep,
 ):
-    await service.delete_bulk(body.ids, company_id=str(user.company_id))
+    await service.delete_bulk(
+        body.ids, company_id=str(user.company_id), user_id=user.id
+    )
 
 
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -150,4 +154,4 @@ async def delete_category(
     user: CanEditDep,
     service: CategoryServiceDep,
 ):
-    await service.delete(category_id, company_id=str(user.company_id))
+    await service.delete(category_id, company_id=str(user.company_id), user_id=user.id)

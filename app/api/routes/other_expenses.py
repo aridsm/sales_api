@@ -90,7 +90,9 @@ async def update_other_expense(
     user: CanEditDep,
     service: OtherExpenseServiceDep,
 ):
-    return await service.update(expense_id, body, company_id=user.company_id)
+    return await service.update(
+        expense_id, body, company_id=user.company_id, user_id=user.id
+    )
 
 
 @router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
@@ -99,7 +101,9 @@ async def delete_bulk_other_expenses(
     user: CanEditDep,
     service: OtherExpenseServiceDep,
 ):
-    await service.delete_bulk(body.ids, company_id=str(user.company_id))
+    await service.delete_bulk(
+        body.ids, company_id=str(user.company_id), user_id=user.id
+    )
 
 
 @router.delete("/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -108,4 +112,4 @@ async def delete_other_expense(
     user: CanEditDep,
     service: OtherExpenseServiceDep,
 ):
-    await service.delete(expense_id, company_id=str(user.company_id))
+    await service.delete(expense_id, company_id=str(user.company_id), user_id=user.id)

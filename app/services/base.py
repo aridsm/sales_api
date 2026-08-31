@@ -126,7 +126,7 @@ class BaseService(Generic[T]):
             items=items,
             total_items=total_items,
             page=page,
-            total_pages=ceil(total_items / page_size),
+            total_pages=ceil(total_items / page_size) if page_size > 0 else 1,
         )
 
     async def get_by_id(

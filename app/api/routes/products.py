@@ -96,7 +96,9 @@ async def update_product(
     user: CanEditDep,
     service: ProductServiceDep,
 ):
-    return await service.update(product_id, body, company_id=user.company_id)
+    return await service.update(
+        product_id, body, company_id=user.company_id, user_id=user.id
+    )
 
 
 @router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
@@ -105,7 +107,9 @@ async def delete_bulk_products(
     user: CanEditDep,
     service: ProductServiceDep,
 ):
-    await service.delete_bulk(body.ids, company_id=str(user.company_id))
+    await service.delete_bulk(
+        body.ids, company_id=str(user.company_id), user_id=user.id
+    )
 
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -114,4 +118,4 @@ async def delete_product(
     user: CanEditDep,
     service: ProductServiceDep,
 ):
-    await service.delete(product_id, company_id=str(user.company_id))
+    await service.delete(product_id, company_id=str(user.company_id), user_id=user.id)

@@ -54,7 +54,8 @@ async def delete_me(user: UserLoggedDep, service: UserServiceDep):
 
 @router.patch("/me", response_model=UserResponse)
 async def update_me(body: UserUpdate, user: UserLoggedDep, service: UserServiceDep):
-    return await service.update(user.id, body.model_dump(exclude_unset=True))
+    updated_user = await service.update(user.id, body.model_dump(exclude_unset=True))
+    return UserResponse(**updated_user.model_dump(), permission=user.permission)
 
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
@@ -68,8 +69,11 @@ async def switch_company(
     user: UserLoggedDep,
     company_service: CompanyServiceDep,
 ):
-    await company_service.switch_company(user.id, body.company_id)
-    return {**user.model_dump(), "company_id": body.company_id}
+    new_permission = await company_service.switch_company(user.id, body.company_id)
+    return UserResponse(
+        **{**user.model_dump(exclude=["permission"]), "company_id": body.company_id},
+        permission=new_permission,
+    )
 
 
 @router.get("/invitations", response_model=list[CompanyInvitationResponse])
