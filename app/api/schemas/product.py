@@ -29,6 +29,9 @@ class ProductResponse(ProductBase):
     created_at: datetime
     category_name: Optional[str] = None
     category_color: Optional[str] = None
+    created_by: Optional[UUID] = None
+    created_by_name: Optional[str] = None
+    created_by_email: Optional[str] = None
 
 
 class ProductBulkDelete(BaseModel):

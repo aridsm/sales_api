@@ -14,6 +14,12 @@ class Category(SQLModel, table=True):
     color: str | None = Field(default=None, max_length=7)
     type: CategoryType = Field(nullable=False)
     user_id: uuid.UUID = Field(foreign_key="users.id", nullable=False, index=True)
+    created_by: uuid.UUID | None = Field(
+        default=None,
+        sa_column=Column(
+            ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+        ),
+    )
     company_id: uuid.UUID = Field(
         sa_column=Column(
             ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True

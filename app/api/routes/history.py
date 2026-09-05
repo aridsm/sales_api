@@ -2,7 +2,7 @@ from fastapi import APIRouter, status, Query
 from typing import List
 from datetime import datetime
 from app.api.schemas.history import HistoryResponse, HistoryBulkDelete
-from app.api.dependencies import UserLoggedDep, HistoryServiceDep, CanEditDep
+from app.api.dependencies import CanViewDep, HistoryServiceDep, CanEditDep
 from app.api.utils.paginated_response import PaginatedResponse
 from app.enums.history import ActionType, EntityType
 
@@ -11,7 +11,7 @@ router = APIRouter(prefix="/history", tags=["history"])
 
 @router.get("/", response_model=PaginatedResponse[HistoryResponse])
 async def get_history(
-    user: UserLoggedDep,
+    user: CanViewDep,
     service: HistoryServiceDep,
     page: int = 1,
     page_size: int = 20,
@@ -22,7 +22,7 @@ async def get_history(
     end_created_at: datetime | None = Query(None),
 ):
     return await service.get_recent_history(
-        str(user.company_id),
+        user.company_id,
         page,
         page_size,
         search=search,
@@ -39,4 +39,4 @@ async def delete_bulk_history(
     user: CanEditDep,
     service: HistoryServiceDep,
 ):
-    await service.delete_bulk(body.ids, company_id=str(user.company_id))
+    await service.delete_bulk(body.ids, company_id=user.company_id)

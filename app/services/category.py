@@ -16,6 +16,7 @@ from typing import Literal
 from datetime import datetime
 from fastapi import HTTPException
 from typing import Any
+from app.database.models.user import User
 from app.services.history import HistoryService
 from app.enums.history import ActionType, EntityType
 
@@ -31,6 +32,8 @@ class CategoryService(BaseService[Category]):
         user_id: uuid.UUID | None = None,
         company_id: uuid.UUID | None = None,
     ) -> Category:
+        if user_id and not item.created_by:
+            item.created_by = user_id
         new_item = await super().create(item, user_id=user_id, company_id=company_id)
         self.history.log_action(
             user_id=user_id,
@@ -64,13 +67,35 @@ class CategoryService(BaseService[Category]):
         await self.session.commit()
         return updated_item
 
-    def get_base_query_with_count(self, company_id: str | uuid.UUID):
-        return (
-            select(Category, func.count(Product.id).label("products"))
-            .outerjoin(Product, Category.id == Product.category_id)
-            .where(Category.company_id == company_id)
-            .group_by(Category.id)
+    def get_base_query_with_count(self, company_id: str | uuid.UUID | None):
+        parsed_company_id = (
+            uuid.UUID(str(company_id))
+            if company_id and not isinstance(company_id, uuid.UUID)
+            else company_id
         )
+        return (
+            select(
+                Category,
+                func.count(Product.id).label("products"),
+                User.name.label("created_by_name"),
+                User.email.label("created_by_email"),
+            )
+            .outerjoin(Product, Category.id == Product.category_id)
+            .outerjoin(User, Category.created_by == User.id)
+            .where(Category.company_id == parsed_company_id)
+            .group_by(Category.id, User.name, User.email)
+        )
+
+    async def get_by_id(
+        self,
+        id: uuid.UUID,
+        company_id: uuid.UUID | str | None = None,
+        user_id: uuid.UUID | str | None = None,
+        query: Any = None,
+    ) -> Any:
+        if query is None:
+            query = self.get_base_query_with_count(company_id=company_id).where(Category.id == id)
+        return await super().get_by_id(id, company_id=company_id, query=query)
 
     async def delete(
         self,

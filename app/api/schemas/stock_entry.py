@@ -25,6 +25,9 @@ class StockEntryResponse(StockEntryBase):
     code: int | None = None
     total: float
     user_id: UUID
+    created_by: Optional[UUID] = None
+    created_by_name: Optional[str] = None
+    created_by_email: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     items_count: Optional[int] = None

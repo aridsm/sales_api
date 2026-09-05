@@ -10,6 +10,7 @@ from app.services.base import BaseService
 from app.database.models.stock_entry import StockEntry
 from app.database.models.stock_entry_product import StockEntryProduct
 from app.database.models.product import Product
+from app.database.models.user import User
 from app.api.schemas.stock_entry import StockEntryProductItem
 from app.enums.stock_entry import StockEntryStatus
 from app.services.history import HistoryService
@@ -23,12 +24,18 @@ class StockEntryService(BaseService[StockEntry]):
 
     def get_base_query(self, company_id: str | uuid.UUID) -> Select:
         return (
-            select(StockEntry, func.count(StockEntryProduct.id).label("items_count"))
+            select(
+                StockEntry,
+                func.count(StockEntryProduct.id).label("items_count"),
+                User.name.label("created_by_name"),
+                User.email.label("created_by_email"),
+            )
             .outerjoin(
                 StockEntryProduct, StockEntry.id == StockEntryProduct.stock_entry_id
             )
+            .outerjoin(User, StockEntry.created_by == User.id)
             .where(StockEntry.company_id == company_id)
-            .group_by(StockEntry.id)
+            .group_by(StockEntry.id, User.name, User.email)
         )
 
     async def get_all(
@@ -73,6 +80,8 @@ class StockEntryService(BaseService[StockEntry]):
             else entry_obj.dict()
         )
         entry_dict["items_count"] = row.get("items_count", 0)
+        entry_dict["created_by_name"] = row.get("created_by_name")
+        entry_dict["created_by_email"] = row.get("created_by_email")
         return entry_dict
 
     async def create_entry_with_products(
@@ -108,6 +117,7 @@ class StockEntryService(BaseService[StockEntry]):
 
         entry = StockEntry(
             user_id=user_id,
+            created_by=user_id,
             company_id=company_id,
             status=StockEntryStatus.OPEN,
             total=total,

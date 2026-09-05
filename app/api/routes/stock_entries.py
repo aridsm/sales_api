@@ -13,7 +13,7 @@ from app.api.schemas.stock_entry import (
     StockEntryResponse,
     StockEntryBulkDelete,
 )
-from app.api.dependencies import UserLoggedDep, CanEditDep, StockEntryServiceDep
+from app.api.dependencies import CanViewDep, CanEditDep, StockEntryServiceDep
 from app.api.utils.paginated_response import PaginatedResponse
 
 router = APIRouter(prefix="/stock_entries", tags=["stock_entries"])
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/stock_entries", tags=["stock_entries"])
 
 @router.get("/", response_model=PaginatedResponse[StockEntryResponse])
 async def get_all_stock_entries(
-    user: UserLoggedDep,
+    user: CanViewDep,
     service: StockEntryServiceDep,
     page: int = 1,
     page_size: int = 20,
@@ -88,10 +88,10 @@ async def get_all_stock_entries(
 @router.get("/{id}", response_model=StockEntryResponse)
 async def get_stock_entry_by_id(
     id: UUID,
-    user: UserLoggedDep,
+    user: CanViewDep,
     service: StockEntryServiceDep,
 ):
-    return await service.get_entry_with_details(id, company_id=str(user.company_id))
+    return await service.get_entry_with_details(id, company_id=user.company_id)
 
 
 @router.post(
