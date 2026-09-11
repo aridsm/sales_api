@@ -22,7 +22,7 @@ async def get_history(
     end_created_at: datetime | None = Query(None),
 ):
     return await service.get_recent_history(
-        str(user.company_id),
+        user.company_id,
         page,
         page_size,
         search=search,
@@ -39,4 +39,4 @@ async def delete_bulk_history(
     user: CanEditDep,
     service: HistoryServiceDep,
 ):
-    await service.delete_bulk(body.ids, company_id=str(user.company_id))
+    await service.delete_bulk(body.ids, company_id=user.company_id)

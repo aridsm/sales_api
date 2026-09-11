@@ -17,6 +17,7 @@ from app.api.dependencies import (
 from app.api.utils.paginated_response import PaginatedResponse
 from app.database.models.category import Category
 from app.database.models.product import Product
+from app.database.models.user import User
 
 router = APIRouter(prefix="/products", tags=["products"])
 
@@ -37,11 +38,17 @@ async def get_all_products(
     end_stock_amount: int | None = Query(None),
 ):
 
-    query = select(
-        Product,
-        Category.name.label("category_name"),
-        Category.color.label("category_color"),
-    ).outerjoin(Category, Product.category_id == Category.id)
+    query = (
+        select(
+            Product,
+            Category.name.label("category_name"),
+            Category.color.label("category_color"),
+            User.name.label("created_by_name"),
+            User.email.label("created_by_email"),
+        )
+        .outerjoin(Category, Product.category_id == Category.id)
+        .outerjoin(User, Product.created_by == User.id)
+    )
 
     if start_price is not None:
         query = query.where(Product.price >= start_price)
@@ -58,7 +65,7 @@ async def get_all_products(
 
     result = await service.get_all(
         query=query,
-        company_id=str(user.company_id),
+        company_id=user.company_id,
         page=page,
         page_size=page_size,
         search=search,
@@ -73,7 +80,19 @@ async def get_product_by_id(
     user: CanViewDep,
     service: ProductServiceDep,
 ):
-    return await service.get_by_id(product_id, company_id=str(user.company_id))
+    query = (
+        select(
+            Product,
+            Category.name.label("category_name"),
+            Category.color.label("category_color"),
+            User.name.label("created_by_name"),
+            User.email.label("created_by_email"),
+        )
+        .outerjoin(Category, Product.category_id == Category.id)
+        .outerjoin(User, Product.created_by == User.id)
+        .where(Product.id == product_id)
+    )
+    return await service.get_by_id(product_id, company_id=user.company_id, query=query)
 
 
 @router.post("/", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
@@ -83,7 +102,7 @@ async def create_product(
     service: ProductServiceDep,
 ):
     return await service.create(
-        Product(user_id=user.id, company_id=user.company_id, **body.model_dump()),
+        Product(user_id=user.id, created_by=user.id, company_id=user.company_id, **body.model_dump()),
         user_id=user.id,
         company_id=user.company_id,
     )

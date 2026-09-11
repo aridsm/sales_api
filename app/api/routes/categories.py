@@ -96,7 +96,7 @@ async def get_categories_amounts(
     end_created_at: datetime | None = Query(None),
 ):
     return await service.get_amounts(
-        str(user.company_id),
+        user.company_id,
         type=type,
         start_created_at=start_created_at,
         end_created_at=end_created_at,
@@ -109,7 +109,7 @@ async def get_category_by_id(
     user: CanViewDep,
     service: CategoryServiceDep,
 ):
-    return await service.get_by_id(category_id, company_id=str(user.company_id))
+    return await service.get_by_id(category_id, company_id=user.company_id)
 
 
 @router.post("/", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
@@ -119,7 +119,7 @@ async def create_category(
     service: CategoryServiceDep,
 ):
     return await service.create(
-        Category(**body.model_dump(), user_id=user.id, company_id=user.company_id),
+        Category(**body.model_dump(), user_id=user.id, created_by=user.id, company_id=user.company_id),
         user_id=user.id,
         company_id=user.company_id,
     )

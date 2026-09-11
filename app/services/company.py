@@ -260,7 +260,7 @@ class CompanyService:
                     CompanyUser.user_id != target_user_id,
                 )
             )
-            has_other_admins = admins_res.scalar_one_or_none()
+            has_other_admins = admins_res.scalars().first()
             if not has_other_admins:
                 raise HTTPException(
                     status_code=400,
@@ -286,7 +286,7 @@ class CompanyService:
                 )
             )
 
-            has_other_admins = res.scalar_one_or_none()
+            has_other_admins = res.scalars().first()
 
             if not has_other_admins:
                 raise HTTPException(
@@ -298,6 +298,7 @@ class CompanyService:
         user = user_res.scalar_one_or_none()
         if user and user.company_id == company_id:
             user.company_id = None
+
 
         await self.session.delete(company_user)
         await self.session.commit()
@@ -315,12 +316,28 @@ class CompanyService:
 
         company_user = await self._get_company_user(company_id, target_user_id)
 
+        if company_user.permission == CompanyPermission.ADMIN:
+            res = await self.session.execute(
+                select(CompanyUser).where(
+                    CompanyUser.company_id == company_id,
+                    CompanyUser.permission == CompanyPermission.ADMIN,
+                    CompanyUser.user_id != target_user_id,
+                )
+            )
+            has_other_admins = res.scalars().first()
+            if not has_other_admins:
+                raise HTTPException(
+                    status_code=400,
+                    detail={"error": "errorCannotHaveNoAdministrator"},
+                )
+
         user_res = await self.session.execute(
             select(User).where(User.id == target_user_id)
         )
         user = user_res.scalar_one_or_none()
         if user and user.company_id == company_id:
             user.company_id = None
+
 
         await self.session.delete(company_user)
         await self.session.commit()

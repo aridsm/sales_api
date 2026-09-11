@@ -97,7 +97,7 @@ async def get_sale_by_id(
     user: CanViewDep,
     service: SaleServiceDep,
 ):
-    return await service.get_sale_with_details(sale_id, company_id=str(user.company_id))
+    return await service.get_sale_with_details(sale_id, company_id=user.company_id)
 
 
 @router.post("/", response_model=SaleResponse, status_code=status.HTTP_201_CREATED)

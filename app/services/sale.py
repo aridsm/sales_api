@@ -6,6 +6,7 @@ from app.services.base import BaseService
 from app.database.models.sale import Sale
 from app.database.models.sale_product import SaleProduct
 from app.database.models.product import Product
+from app.database.models.user import User
 from app.api.schemas.sale import SaleProductItem
 from app.enums.sale import SaleStatus
 from sqlalchemy import Select, func
@@ -22,10 +23,16 @@ class SaleService(BaseService[Sale]):
 
     def get_base_query(self, company_id: str | uuid.UUID) -> Select:
         return (
-            select(Sale, func.count(SaleProduct.id).label("items_count"))
+            select(
+                Sale,
+                func.count(SaleProduct.id).label("items_count"),
+                User.name.label("created_by_name"),
+                User.email.label("created_by_email"),
+            )
             .outerjoin(SaleProduct, Sale.id == SaleProduct.sale_id)
+            .outerjoin(User, Sale.created_by == User.id)
             .where(Sale.company_id == company_id)
-            .group_by(Sale.id)
+            .group_by(Sale.id, User.name, User.email)
         )
 
     async def get_all(
@@ -61,6 +68,8 @@ class SaleService(BaseService[Sale]):
             else sale_obj.dict()
         )
         sale_dict["items_count"] = row.get("items_count", 0)
+        sale_dict["created_by_name"] = row.get("created_by_name")
+        sale_dict["created_by_email"] = row.get("created_by_email")
         return sale_dict
 
     async def create_sale_with_products(
@@ -109,6 +118,7 @@ class SaleService(BaseService[Sale]):
 
         sale = Sale(
             user_id=user_id,
+            created_by=user_id,
             company_id=company_id,
             status=SaleStatus.DONE,
             total=total,

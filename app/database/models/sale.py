@@ -21,6 +21,14 @@ class Sale(SQLModel, table=True):
     status: SaleStatus = Field(default=SaleStatus.DONE, nullable=False, index=True)
     total: float = Field(default=0, nullable=False)
     user_id: uuid.UUID = Field(foreign_key="users.id", nullable=False, index=True)
+    created_by: uuid.UUID | None = Field(
+        default=None,
+        sa_column=Column(
+            ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+            index=True,
+        ),
+    )
     company_id: uuid.UUID = Field(
         sa_column=Column(
             ForeignKey("companies.id", ondelete="CASCADE"),

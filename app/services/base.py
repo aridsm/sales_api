@@ -148,7 +148,16 @@ class BaseService(Generic[T]):
         if row is None:
             raise HTTPException(status_code=404, detail={"error": "errorEntityNotFound"})
 
-        return row[0]
+        keys = list(res.keys())
+        obj = row[0]
+        if len(row) > 1:
+            for i, key in enumerate(keys[1:], 1):
+                try:
+                    setattr(obj, key, row[i])
+                except Exception:
+                    object.__setattr__(obj, key, row[i])
+
+        return obj
 
     async def create(
         self, item: T, user_id: uuid.UUID | None = None, company_id: uuid.UUID | None = None
@@ -159,6 +168,9 @@ class BaseService(Generic[T]):
         model_user_id = getattr(self.model, "user_id", None)
         if user_id and model_user_id is not None:
             setattr(item, "user_id", user_id)
+        model_created_by = getattr(self.model, "created_by", None)
+        if user_id and model_created_by is not None:
+            setattr(item, "created_by", user_id)
         self.session.add(item)
         await self.session.commit()
         await self.session.refresh(item)
@@ -173,6 +185,7 @@ class BaseService(Generic[T]):
             body = diff
         else:
             body = diff.model_dump(exclude_unset=True)
+        body.pop("created_by", None)
         for key, value in body.items():
             setattr(item_db, key, value)
 

@@ -14,6 +14,7 @@ from app.api.dependencies import CanViewDep, OtherExpenseServiceDep, CanEditDep
 from app.api.utils.paginated_response import PaginatedResponse
 from app.database.models.other_expense import OtherExpense
 from app.database.models.category import Category
+from app.database.models.user import User
 
 router = APIRouter(prefix="/other_expenses", tags=["other_expenses"])
 
@@ -34,8 +35,15 @@ async def get_all_other_expenses(
     category_id: List[UUID] | None = Query(None),
 ):
     query = (
-        select(OtherExpense, Category.name.label("category_name"), Category.color.label("category_color"))
+        select(
+            OtherExpense,
+            Category.name.label("category_name"),
+            Category.color.label("category_color"),
+            User.name.label("created_by_name"),
+            User.email.label("created_by_email"),
+        )
         .outerjoin(Category, OtherExpense.category_id == Category.id)
+        .outerjoin(User, OtherExpense.created_by == User.id)
     )
 
     if start_created_at:
@@ -54,7 +62,7 @@ async def get_all_other_expenses(
         query = query.where(OtherExpense.category_id.in_(category_id))
 
     result = await service.get_all(
-        query=query, company_id=str(user.company_id), page=page, page_size=page_size, search=search
+        query=query, company_id=user.company_id, page=page, page_size=page_size, search=search
     )
     return result
 
@@ -65,7 +73,19 @@ async def get_other_expense_by_id(
     user: CanViewDep,
     service: OtherExpenseServiceDep,
 ):
-    return await service.get_by_id(expense_id, company_id=str(user.company_id))
+    query = (
+        select(
+            OtherExpense,
+            Category.name.label("category_name"),
+            Category.color.label("category_color"),
+            User.name.label("created_by_name"),
+            User.email.label("created_by_email"),
+        )
+        .outerjoin(Category, OtherExpense.category_id == Category.id)
+        .outerjoin(User, OtherExpense.created_by == User.id)
+        .where(OtherExpense.id == expense_id)
+    )
+    return await service.get_by_id(expense_id, company_id=user.company_id, query=query)
 
 
 @router.post(
@@ -77,7 +97,7 @@ async def create_other_expense(
     service: OtherExpenseServiceDep,
 ):
     return await service.create(
-        OtherExpense(user_id=user.id, company_id=user.company_id, **body.model_dump()),
+        OtherExpense(user_id=user.id, created_by=user.id, company_id=user.company_id, **body.model_dump()),
         user_id=user.id,
         company_id=user.company_id,
     )

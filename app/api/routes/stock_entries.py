@@ -91,7 +91,7 @@ async def get_stock_entry_by_id(
     user: CanViewDep,
     service: StockEntryServiceDep,
 ):
-    return await service.get_entry_with_details(id, company_id=str(user.company_id))
+    return await service.get_entry_with_details(id, company_id=user.company_id)
 
 
 @router.post(

@@ -24,6 +24,9 @@ class CategoryUpdate(BaseModel):
 class CategoryResponse(CategoryBase):
     id: UUID
     user_id: UUID
+    created_by: Optional[UUID] = None
+    created_by_name: Optional[str] = None
+    created_by_email: Optional[str] = None
     created_at: datetime
     products: int = 0
 

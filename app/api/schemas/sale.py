@@ -27,6 +27,9 @@ class SaleResponse(BaseModel):
     status: SaleStatus
     total: float
     user_id: UUID
+    created_by: Optional[UUID] = None
+    created_by_name: Optional[str] = None
+    created_by_email: Optional[str] = None
     items_count: int = 0
     created_at: datetime
     updated_at: datetime
