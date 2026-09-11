@@ -44,3 +44,57 @@ async def test_get_me(client: AsyncClient, test_user):
     assert me_data["email"] == test_user.email
     assert me_data["name"] == test_user.name
     assert me_data["id"] == str(test_user.id)
+
+
+@pytest.mark.asyncio
+async def test_access_protected_routes_without_active_company(unauth_client: AsyncClient, session):
+    from app.database.models.user import User
+    from app.api.dependencies import get_user_logged
+    from app.api.schemas.user import UserResponse
+    from app.main import app
+    from datetime import datetime
+
+    user_id = uuid.uuid4()
+    db_user = User(
+        id=user_id,
+        name="No Company User",
+        email=f"nocompany_{user_id}@example.com",
+        password_hash="hashed_password",
+        company_id=None,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+    session.add(db_user)
+    await session.commit()
+    await session.refresh(db_user)
+
+    user_no_company = UserResponse(
+        id=user_id,
+        email=db_user.email,
+        name=db_user.name,
+        company_id=None,
+        permission=None,
+        created_at=db_user.created_at,
+        updated_at=db_user.updated_at
+    )
+
+    app.dependency_overrides[get_user_logged] = lambda: user_no_company
+
+    endpoints = [
+        "/categories/",
+        "/categories/amounts",
+        "/products/",
+        "/sales/",
+        "/sale_products/",
+        "/other_expenses/",
+        "/stock_entries/",
+        "/stock_entry_products/",
+        "/dashboard/chart",
+        "/dashboard/budgets",
+        "/history/",
+    ]
+
+    for endpoint in endpoints:
+        res = await unauth_client.get(endpoint)
+        assert res.status_code == 403, f"Endpoint {endpoint} returned {res.status_code} instead of 403: {res.text}"
+        assert res.json() == {"detail": {"error": "errorUserHasNoActiveCompany"}}

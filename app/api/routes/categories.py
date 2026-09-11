@@ -12,7 +12,7 @@ from app.api.schemas.category import (
     CategoryBulkDelete,
     CategoryAmountsWrapper,
 )
-from app.api.dependencies import UserLoggedDep, CategoryServiceDep, CanEditDep
+from app.api.dependencies import CanViewDep, CategoryServiceDep, CanEditDep
 from app.api.utils.paginated_response import PaginatedResponse
 from datetime import datetime
 
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/categories", tags=["categories"])
 
 @router.get("/", response_model=PaginatedResponse[CategoryResponse])
 async def get_all_categories(
-    user: UserLoggedDep,
+    user: CanViewDep,
     service: CategoryServiceDep,
     page: int = 1,
     page_size: int = 20,
@@ -89,9 +89,9 @@ async def get_all_categories(
 
 @router.get("/amounts", response_model=CategoryAmountsWrapper)
 async def get_categories_amounts(
-    user: UserLoggedDep,
+    user: CanViewDep,
     service: CategoryServiceDep,
-    type: Literal["sales", "stock_entries", "other_expenses"] = Query("sales"),
+    type: str = Query("sales"),
     start_created_at: datetime | None = Query(None),
     end_created_at: datetime | None = Query(None),
 ):
@@ -106,7 +106,7 @@ async def get_categories_amounts(
 @router.get("/{category_id}", response_model=CategoryResponse)
 async def get_category_by_id(
     category_id: UUID,
-    user: UserLoggedDep,
+    user: CanViewDep,
     service: CategoryServiceDep,
 ):
     return await service.get_by_id(category_id, company_id=str(user.company_id))

@@ -10,7 +10,7 @@ from app.api.schemas.product import (
     ProductUpdate,
 )
 from app.api.dependencies import (
-    UserLoggedDep,
+    CanViewDep,
     ProductServiceDep,
     CanEditDep,
 )
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/products", tags=["products"])
 
 @router.get("/", response_model=PaginatedResponse[ProductResponse])
 async def get_all_products(
-    user: UserLoggedDep,
+    user: CanViewDep,
     service: ProductServiceDep,
     category_id: list[UUID] | None = Query(default=None),
     page: int = 1,
@@ -70,7 +70,7 @@ async def get_all_products(
 @router.get("/{product_id}", response_model=ProductResponse)
 async def get_product_by_id(
     product_id: uuid.UUID,
-    user: UserLoggedDep,
+    user: CanViewDep,
     service: ProductServiceDep,
 ):
     return await service.get_by_id(product_id, company_id=str(user.company_id))

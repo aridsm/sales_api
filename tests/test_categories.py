@@ -128,3 +128,74 @@ async def test_delete_bulk_categories_with_expenses(client: AsyncClient, test_us
     assert del_res.status_code == 400
     assert del_res.json()["detail"]["error"] == "errorHasExpenses"
     assert "Cat Bulk Exp 1" in del_res.json()["detail"]["categories"]
+
+@pytest.mark.asyncio
+async def test_get_categories_amounts(client: AsyncClient, test_user):
+    from datetime import datetime, timezone
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # 1. Create a category for products/sales
+    cat_sale_res = await client.post("/categories/", json={"name": "Cat Sale", "color": "#123456", "type": 1})
+    assert cat_sale_res.status_code == 201
+    cat_sale_id = cat_sale_res.json()["id"]
+
+    # 2. Create a product
+    prod_res = await client.post("/products/", json={
+        "name": "Prod 1",
+        "category_id": cat_sale_id,
+        "price": 25.0,
+        "stock_amount": 100
+    })
+    assert prod_res.status_code == 201
+    prod_id = prod_res.json()["id"]
+
+    # 3. Create a sale
+    sale_res = await client.post("/sales/", json={
+        "date": now_iso,
+        "products": [{"product_id": prod_id, "quantity": 2}]
+    })
+    assert sale_res.status_code == 201
+
+    # 4. Create stock entry
+    stock_res = await client.post("/stock_entries/", json={
+        "date": now_iso,
+        "products": [{"product_id": prod_id, "quantity": 10, "unit_price": 15.0}]
+    })
+    assert stock_res.status_code == 201
+
+    # 5. Create category for expense and expense
+    cat_exp_res = await client.post("/categories/", json={"name": "Cat Exp", "color": "#654321", "type": 2})
+    assert cat_exp_res.status_code == 201
+    cat_exp_id = cat_exp_res.json()["id"]
+
+    exp_res = await client.post("/other_expenses/", json={
+        "name": "Expense 1",
+        "value": 80.0,
+        "date": now_iso,
+        "category_id": cat_exp_id
+    })
+    assert exp_res.status_code == 201
+
+    # Test sales amounts
+    res_sales = await client.get("/categories/amounts", params={"type": "sales", "start_created_at": now_iso})
+    assert res_sales.status_code == 200, f"Error on sales: {res_sales.text}"
+    data_sales = res_sales.json()
+    assert "items" in data_sales
+    assert len(data_sales["items"]) >= 1
+    assert data_sales["total"] == 50.0
+
+    # Test stock_entries amounts
+    res_stock = await client.get("/categories/amounts", params={"type": "stock_entries", "start_created_at": now_iso})
+    assert res_stock.status_code == 200, f"Error on stock_entries: {res_stock.text}"
+    data_stock = res_stock.json()
+    assert "items" in data_stock
+    assert len(data_stock["items"]) >= 1
+    assert data_stock["total"] == 150.0
+
+    # Test other_expenses amounts
+    res_expenses = await client.get("/categories/amounts", params={"type": "other_expenses", "start_created_at": now_iso})
+    assert res_expenses.status_code == 200, f"Error on other_expenses: {res_expenses.text}"
+    data_expenses = res_expenses.json()
+    assert "items" in data_expenses
+    assert len(data_expenses["items"]) >= 1
+    assert data_expenses["total"] == 80.0

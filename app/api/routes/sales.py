@@ -13,7 +13,7 @@ from app.api.schemas.sale import (
     SaleResponse,
     SaleBulkDelete,
 )
-from app.api.dependencies import UserLoggedDep, CanEditDep, SaleServiceDep
+from app.api.dependencies import CanViewDep, CanEditDep, SaleServiceDep
 from app.api.utils.paginated_response import PaginatedResponse
 
 router = APIRouter(prefix="/sales", tags=["sales"])
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/sales", tags=["sales"])
 
 @router.get("/", response_model=PaginatedResponse[SaleResponse])
 async def get_all_sales(
-    user: UserLoggedDep,
+    user: CanViewDep,
     service: SaleServiceDep,
     page: int = 1,
     page_size: int = 20,
@@ -94,7 +94,7 @@ async def get_all_sales(
 @router.get("/{sale_id}", response_model=SaleResponse)
 async def get_sale_by_id(
     sale_id: UUID,
-    user: UserLoggedDep,
+    user: CanViewDep,
     service: SaleServiceDep,
 ):
     return await service.get_sale_with_details(sale_id, company_id=str(user.company_id))

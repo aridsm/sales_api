@@ -82,7 +82,7 @@ def require_permission(*allowed: CompanyPermission):
         if user.company_id is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail={"error": "errorNoCompanySelected"},
+                detail={"error": "errorUserHasNoActiveCompany"},
             )
         if user.permission not in allowed:
             raise HTTPException(

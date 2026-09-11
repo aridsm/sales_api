@@ -7,7 +7,7 @@ from app.api.schemas.sale_product import (
     SaleProductResponse,
     SaleProductBulkDelete,
 )
-from app.api.dependencies import UserLoggedDep, CanEditDep, SaleProductServiceDep
+from app.api.dependencies import CanViewDep, CanEditDep, SaleProductServiceDep
 from app.api.utils.paginated_response import PaginatedResponse
 from app.database.models.sale_product import SaleProduct
 
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/sale_products", tags=["sale_products"])
 
 @router.get("/", response_model=PaginatedResponse[SaleProductResponse])
 async def get_all_sale_products(
-    user: UserLoggedDep,
+    user: CanViewDep,
     service: SaleProductServiceDep,
     sale_id: uuid.UUID | None = None,
     product_id: uuid.UUID | None = None,
@@ -36,7 +36,7 @@ async def get_all_sale_products(
 @router.get("/{sale_product_id}", response_model=SaleProductResponse)
 async def get_sale_product_by_id(
     sale_product_id: uuid.UUID,
-    user: UserLoggedDep,
+    user: CanViewDep,
     service: SaleProductServiceDep,
 ):
     return await service.get_by_id(sale_product_id, company_id=str(user.company_id))

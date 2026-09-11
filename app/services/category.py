@@ -179,13 +179,26 @@ class CategoryService(BaseService[Category]):
 
     async def get_amounts(
         self,
-        company_id: str,
-        type: Literal["sales", "stock_entries", "other_expenses"] = "sales",
+        company_id: str | uuid.UUID,
+        type: str = "sales",
         start_created_at: datetime | None = None,
         end_created_at: datetime | None = None,
     ) -> dict:
+        comp_id = (
+            company_id
+            if isinstance(company_id, uuid.UUID)
+            else uuid.UUID(str(company_id))
+        )
 
-        if type == "sales":
+        normalized_type = str(type).lower().strip()
+        if normalized_type in ["stock_entries", "stock_entry", "stock"]:
+            selected_type = "stock_entries"
+        elif normalized_type in ["2", "other_expenses", "other_expense", "expense", "expenses"]:
+            selected_type = "other_expenses"
+        else:
+            selected_type = "sales"
+
+        if selected_type == "sales":
             query = (
                 select(
                     Category.id.label("category_id"),
@@ -199,7 +212,7 @@ class CategoryService(BaseService[Category]):
                 .join(SaleProduct, SaleProduct.product_id == Product.id)
                 .join(Sale, Sale.id == SaleProduct.sale_id)
                 .where(
-                    Category.company_id == uuid.UUID(company_id),
+                    Category.company_id == comp_id,
                     Sale.status == SaleStatus.DONE,
                 )
                 .group_by(Category.id, Category.name, Category.color)
@@ -209,10 +222,10 @@ class CategoryService(BaseService[Category]):
             )
 
             if start_created_at:
-                query = query.where(SaleProduct.created_at >= start_created_at)
+                query = query.where(Sale.date >= start_created_at)
             if end_created_at:
-                query = query.where(SaleProduct.created_at <= end_created_at)
-        elif type == "stock_entries":
+                query = query.where(Sale.date <= end_created_at)
+        elif selected_type == "stock_entries":
             query = (
                 select(
                     Category.id.label("category_id"),
@@ -226,7 +239,7 @@ class CategoryService(BaseService[Category]):
                 .join(StockEntryProduct, StockEntryProduct.product_id == Product.id)
                 .join(StockEntry, StockEntry.id == StockEntryProduct.stock_entry_id)
                 .where(
-                    Category.company_id == uuid.UUID(company_id),
+                    Category.company_id == comp_id,
                     StockEntry.status == StockEntryStatus.OPEN,
                 )
                 .group_by(Category.id, Category.name, Category.color)
@@ -238,9 +251,9 @@ class CategoryService(BaseService[Category]):
             )
 
             if start_created_at:
-                query = query.where(StockEntryProduct.created_at >= start_created_at)
+                query = query.where(StockEntry.date >= start_created_at)
             if end_created_at:
-                query = query.where(StockEntryProduct.created_at <= end_created_at)
+                query = query.where(StockEntry.date <= end_created_at)
         else:
             query = (
                 select(
@@ -251,7 +264,7 @@ class CategoryService(BaseService[Category]):
                 )
                 .join(OtherExpense, OtherExpense.category_id == Category.id)
                 .where(
-                    Category.company_id == uuid.UUID(company_id),
+                    Category.company_id == comp_id,
                 )
                 .group_by(Category.id, Category.name, Category.color)
                 .order_by(func.sum(OtherExpense.value).desc())
@@ -263,18 +276,18 @@ class CategoryService(BaseService[Category]):
                 query = query.where(OtherExpense.date <= end_created_at)
 
         result = await self.session.execute(query)
-        rows = result.all()
+        rows = result.mappings().all()
 
         amounts = []
         total = 0.0
         for row in rows:
-            val = float(row.value) if row.value is not None else 0.0
+            val = float(row["value"]) if row["value"] is not None else 0.0
             total += val
             amounts.append(
                 {
-                    "category_id": str(row.category_id),
-                    "category_name": row.category_name,
-                    "category_color": row.category_color,
+                    "category_id": str(row["category_id"]),
+                    "category_name": row["category_name"],
+                    "category_color": row["category_color"],
                     "value": val,
                 }
             )

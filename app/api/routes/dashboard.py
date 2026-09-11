@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Query
-from app.api.dependencies import UserLoggedDep, DashboardServiceDep
+from app.api.dependencies import CanViewDep, DashboardServiceDep
 from app.api.schemas.dashboard import ChartItem, FrequencyEnum, BudgetResponse
 from datetime import datetime
 
@@ -8,7 +8,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("/chart", response_model=list[ChartItem])
 async def get_chart_data(
-    user: UserLoggedDep,
+    user: CanViewDep,
     service: DashboardServiceDep,
     frequency: FrequencyEnum = Query(FrequencyEnum.daily),
     count: int = Query(7, ge=1, le=100),
@@ -29,7 +29,7 @@ async def get_chart_data(
 
 @router.get("/budgets", response_model=BudgetResponse)
 async def get_budgets(
-    user: UserLoggedDep,
+    user: CanViewDep,
     service: DashboardServiceDep,
     start_date: datetime | None = Query(None),
     end_date: datetime | None = Query(None),
