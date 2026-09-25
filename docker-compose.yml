@@ -7,6 +7,7 @@ services:
       - ./migrations:/code/migrations
       - ./alembic.ini:/code/alembic.ini
       - ./tests:/code/tests
+      - ./uploads:/code/uploads
     ports:
       - "8000:8000"
     depends_on:

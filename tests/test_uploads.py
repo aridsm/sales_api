@@ -36,8 +36,27 @@ async def test_upload_invalid_file_type(client: AsyncClient, test_user):
 
 @pytest.mark.asyncio
 async def test_upload_file_too_large(client: AsyncClient, test_user):
-    large_payload = b"A" * (5 * 1024 * 1024 + 10)  # > 5MB
+    large_payload = b"\x89PNG\r\n\x1a\n" + b"A" * (5 * 1024 * 1024 + 10)  # > 5MB
     files = {"file": ("large.png", large_payload, "image/png")}
     res = await client.post("/uploads/avatar", files=files)
     assert res.status_code == 400
     assert res.json()["detail"]["error"] == "errorFileTooLarge"
+
+
+@pytest.mark.asyncio
+async def test_upload_disguised_file_rejected(client: AsyncClient, test_user):
+    fake_png = b"THIS IS NOT A VALID PNG FILE CONTENT"
+    files = {"file": ("fake.png", fake_png, "image/png")}
+    res = await client.post("/uploads/avatar", files=files)
+    assert res.status_code == 400
+    assert res.json()["detail"]["error"] == "errorInvalidImageContent"
+
+
+@pytest.mark.asyncio
+async def test_upload_svg_rejected(client: AsyncClient, test_user):
+    svg_content = b"<svg><script>alert('xss')</script></svg>"
+    files = {"file": ("evil.svg", svg_content, "image/svg+xml")}
+    res = await client.post("/uploads/avatar", files=files)
+    assert res.status_code == 400
+    assert res.json()["detail"]["error"] == "errorInvalidFileType"
+

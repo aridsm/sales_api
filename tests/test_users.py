@@ -177,3 +177,26 @@ async def test_upload_my_avatar(client: AsyncClient, test_user):
     data = res.json()
     assert data["avatar_url"] is not None
     assert "/static/uploads/avatars/" in data["avatar_url"]
+
+
+@pytest.mark.asyncio
+async def test_change_password_rate_limit(client: AsyncClient, test_user):
+    for _ in range(5):
+        await client.post(
+            "/users/change-password",
+            json={
+                "current_password": "wrong_password",
+                "new_password": "new_secure_password_456",
+            },
+        )
+
+    res = await client.post(
+        "/users/change-password",
+        json={
+            "current_password": "wrong_password",
+            "new_password": "new_secure_password_456",
+        },
+    )
+    assert res.status_code == 429
+    assert res.json()["detail"]["error"] == "errorRateLimitExceeded"
+

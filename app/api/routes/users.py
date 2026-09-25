@@ -1,5 +1,5 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.security import OAuth2PasswordRequestForm
 from app.api.schemas.user import (
     UserCreate,
@@ -23,20 +23,53 @@ from app.api.dependencies import (
 from app.database.models.company_user import CompanyUser
 from app.enums.company import CompanyPermission
 from sqlmodel import select
-from app.api.routes.uploads import AVATARS_DIR, save_upload_file, ensure_upload_dirs
+from app.database.redis import redis_db
+from app.api.routes.uploads import (
+    AVATARS_DIR,
+    save_upload_file,
+    ensure_upload_dirs,
+    check_upload_rate_limit,
+)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
-async def signup(body: UserCreate, service: UserServiceDep):
+async def signup(request: Request, body: UserCreate, service: UserServiceDep):
+    client_ip = request.client.host if request.client else "unknown"
+    allowed = await redis_db.check_rate_limit(
+        f"rate_limit:signup:{client_ip}", max_requests=10, window_seconds=3600
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "errorRateLimitExceeded",
+                "message": "Too many signup attempts. Please try again later.",
+            },
+        )
     return await service.signup(body)
 
 
 @router.post("/login", response_model=TokenResponse)
 async def login(
-    body: Annotated[OAuth2PasswordRequestForm, Depends()], service: UserServiceDep
+    request: Request,
+    body: Annotated[OAuth2PasswordRequestForm, Depends()],
+    service: UserServiceDep,
 ):
+    client_ip = request.client.host if request.client else "unknown"
+    username = body.username.lower().strip()
+    allowed = await redis_db.check_rate_limit(
+        f"rate_limit:login:{client_ip}:{username}", max_requests=10, window_seconds=60
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "errorRateLimitExceeded",
+                "message": "Too many login attempts. Please wait before trying again.",
+            },
+        )
     return await service.login(body)
 
 
@@ -98,6 +131,17 @@ async def change_password(
     user: UserLoggedDep,
     service: UserServiceDep,
 ):
+    allowed = await redis_db.check_rate_limit(
+        f"rate_limit:change_pwd:{user.id}", max_requests=5, window_seconds=60
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "errorRateLimitExceeded",
+                "message": "Too many password change attempts. Please wait before trying again.",
+            },
+        )
     await service.change_password(user.id, body.current_password, body.new_password)
 
 
@@ -107,6 +151,7 @@ async def upload_my_avatar(
     service: UserServiceDep,
     file: UploadFile = File(...),
 ):
+    await check_upload_rate_limit(user.id)
     ensure_upload_dirs()
     url = await save_upload_file(file, AVATARS_DIR, "avatars")
     updated_user = await service.update(user.id, {"avatar_url": url})

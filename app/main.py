@@ -31,7 +31,7 @@ app.mount("/static/uploads", StaticFiles(directory=str(uploads_dir)), name="uplo
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
