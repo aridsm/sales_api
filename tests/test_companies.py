@@ -180,3 +180,251 @@ async def test_remove_user_preserves_created_by(client: AsyncClient, test_user):
     assert get_cat_after.json()["created_by_email"] == f"author_{member_id}@example.com"
 
 
+@pytest.mark.asyncio
+async def test_get_company_by_id(client: AsyncClient, test_user):
+    res = await client.get(f"/companies/{test_user.company_id}")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["id"] == str(test_user.company_id)
+    assert data["name"] == "Test Company"
+
+
+@pytest.mark.asyncio
+async def test_update_company_by_admin(client: AsyncClient, test_user):
+    update_data = {
+        "name": "Updated Company Name",
+        "document": "12.345.678/0001-90",
+        "email": "contact@company.com",
+        "phone": "+551133334444",
+        "website": "https://company.com",
+        "zip_code": "01310-200",
+        "street": "Avenida Brigadeiro Faria Lima",
+        "number": "2000",
+        "complement": "10º Andar",
+        "neighborhood": "Pinheiros",
+        "city": "São Paulo",
+        "state": "SP",
+    }
+    res = await client.patch(f"/companies/{test_user.company_id}", json=update_data)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["name"] == "Updated Company Name"
+    assert data["document"] == "12.345.678/0001-90"
+    assert data["email"] == "contact@company.com"
+    assert data["phone"] == "+551133334444"
+    assert data["website"] == "https://company.com"
+    assert data["city"] == "São Paulo"
+
+
+@pytest.mark.asyncio
+async def test_update_company_by_non_admin_fails(unauth_client: AsyncClient, test_user):
+    from app.api.dependencies import get_user_logged
+    from app.api.schemas.user import UserResponse
+    from app.main import app
+
+    view_user = UserResponse(
+        id=uuid.uuid4(),
+        email="view_user@example.com",
+        name="View User",
+        company_id=test_user.company_id,
+        permission=CompanyPermission.VIEW,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+    try:
+        app.dependency_overrides[get_user_logged] = lambda: view_user
+        res = await unauth_client.patch(f"/companies/{test_user.company_id}", json={"name": "Hacked"})
+        assert res.status_code == 403
+        assert res.json()["detail"]["error"] == "errorInsufficientPermission"
+    finally:
+        app.dependency_overrides.pop(get_user_logged, None)
+
+
+@pytest.mark.asyncio
+async def test_upload_company_logo_by_admin(client: AsyncClient, test_user):
+    fake_png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4"
+    files = {"file": ("logo.png", fake_png, "image/png")}
+
+    res = await client.post(f"/companies/{test_user.company_id}/logo", files=files)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["logo_url"] is not None
+    assert "/static/uploads/company-logos/" in data["logo_url"]
+
+
+@pytest.mark.asyncio
+async def test_upload_company_logo_by_non_admin_fails(unauth_client: AsyncClient, test_user):
+    from app.api.dependencies import get_user_logged
+    from app.api.schemas.user import UserResponse
+    from app.main import app
+
+    view_user = UserResponse(
+        id=uuid.uuid4(),
+        email="view_user_logo@example.com",
+        name="View User",
+        company_id=test_user.company_id,
+        permission=CompanyPermission.VIEW,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+    try:
+        app.dependency_overrides[get_user_logged] = lambda: view_user
+        fake_png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4"
+        files = {"file": ("logo.png", fake_png, "image/png")}
+
+        res = await unauth_client.post(f"/companies/{test_user.company_id}/logo", files=files)
+        assert res.status_code == 403
+        assert res.json()["detail"]["error"] == "errorInsufficientPermission"
+    finally:
+        app.dependency_overrides.pop(get_user_logged, None)
+
+
+@pytest.mark.asyncio
+async def test_get_company_users_includes_profile_fields(client: AsyncClient, test_user):
+    # Update profile of test_user
+    await client.patch("/users/me", json={
+        "phone": "+5511988887777",
+        "document": "999.888.777-66",
+        "city": "Campinas",
+        "state": "SP",
+    })
+
+    # Update job_title on company_user
+    await client.patch(f"/companies/{test_user.company_id}/users/{test_user.id}", json={
+        "job_title": "CTO",
+    })
+
+    # Fetch company users
+    res = await client.get(f"/companies/{test_user.company_id}/users")
+    assert res.status_code == 200
+    data = res.json()
+    assert "items" in data
+    assert len(data["items"]) >= 1
+
+    user_item = next(item for item in data["items"] if item["user_id"] == str(test_user.id))
+    assert user_item["user_job_title"] == "CTO"
+    assert user_item["user_phone"] == "+5511988887777"
+    assert user_item["user_document"] == "999.888.777-66"
+    assert user_item["user_city"] == "Campinas"
+    assert user_item["user_state"] == "SP"
+    assert "job_title" not in user_item
+    assert "phone" not in user_item
+    assert "document" not in user_item
+
+
+@pytest.mark.asyncio
+async def test_admin_can_update_member_job_title(client: AsyncClient, test_user):
+    # Create a member in the company
+    member_user_id = uuid.uuid4()
+    async with async_session_factory_test() as session:
+        member_db_user = User(
+            id=member_user_id,
+            name="Developer User",
+            email=f"dev_{member_user_id}@example.com",
+            password_hash="hashed",
+            company_id=test_user.company_id,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+        session.add(member_db_user)
+        await session.flush()
+
+        member_cu = CompanyUser(
+            company_id=test_user.company_id,
+            user_id=member_user_id,
+            permission=CompanyPermission.VIEW_EDIT,
+            job_title="Junior Dev",
+            created_at=datetime.utcnow(),
+        )
+        session.add(member_cu)
+        await session.commit()
+
+    # Admin updates the member's job_title
+    patch_res = await client.patch(
+        f"/companies/{test_user.company_id}/users/{member_user_id}",
+        json={"job_title": "Senior Engineer"}
+    )
+    assert patch_res.status_code == 200
+    patch_data = patch_res.json()
+    assert patch_data["user_job_title"] == "Senior Engineer"
+    assert patch_data["user_name"] == "Developer User"
+
+    # Verify via get company users
+    res = await client.get(f"/companies/{test_user.company_id}/users")
+    assert res.status_code == 200
+    member_item = next(item for item in res.json()["items"] if item["user_id"] == str(member_user_id))
+    assert member_item["user_job_title"] == "Senior Engineer"
+
+
+@pytest.mark.asyncio
+async def test_non_admin_cannot_update_member_job_title(unauth_client: AsyncClient, test_user):
+    from app.api.dependencies import get_user_logged
+    from app.api.schemas.user import UserResponse
+    from app.main import app
+
+    view_user = UserResponse(
+        id=uuid.uuid4(),
+        email="view_user_edit@example.com",
+        name="View User",
+        company_id=test_user.company_id,
+        permission=CompanyPermission.VIEW,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    try:
+        app.dependency_overrides[get_user_logged] = lambda: view_user
+        res = await unauth_client.patch(
+            f"/companies/{test_user.company_id}/users/{test_user.id}",
+            json={"job_title": "Hacked Title"}
+        )
+        assert res.status_code == 403
+        assert res.json()["detail"]["error"] == "errorInsufficientPermission"
+    finally:
+        app.dependency_overrides.pop(get_user_logged, None)
+
+
+@pytest.mark.asyncio
+async def test_get_my_companies_includes_all_fields(client: AsyncClient, test_user):
+    # Update company details
+    update_data = {
+        "document": "11.222.333/0001-44",
+        "email": "contato@empresa.com",
+        "phone": "+5585999998888",
+        "website": "https://minhaempresa.com",
+        "zip_code": "60000-000",
+        "street": "Avenida Beira Mar",
+        "number": "100",
+        "complement": "Sala 10",
+        "neighborhood": "Meireles",
+        "city": "Fortaleza",
+        "state": "CE",
+    }
+    patch_res = await client.patch(f"/companies/{test_user.company_id}", json=update_data)
+    assert patch_res.status_code == 200
+
+    # Get companies list
+    res = await client.get("/companies/")
+    assert res.status_code == 200
+    data = res.json()
+    assert "items" in data
+    assert len(data["items"]) >= 1
+
+    company_item = next(c for c in data["items"] if c["id"] == str(test_user.company_id))
+    assert company_item["name"] == "Test Company"
+    assert company_item["document"] == "11.222.333/0001-44"
+    assert company_item["email"] == "contato@empresa.com"
+    assert company_item["phone"] == "+5585999998888"
+    assert company_item["website"] == "https://minhaempresa.com"
+    assert company_item["zip_code"] == "60000-000"
+    assert company_item["street"] == "Avenida Beira Mar"
+    assert company_item["number"] == "100"
+    assert company_item["complement"] == "Sala 10"
+    assert company_item["neighborhood"] == "Meireles"
+    assert company_item["city"] == "Fortaleza"
+    assert company_item["state"] == "CE"
+    assert company_item["permission"] == CompanyPermission.ADMIN.value
+    assert "created_at" in company_item
+    assert "updated_at" in company_item
+
+
+

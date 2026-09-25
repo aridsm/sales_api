@@ -48,6 +48,8 @@ async def test_user(session: AsyncSession):
     import uuid
     from datetime import datetime
 
+    from app.services.user import UserService
+
     company_id = uuid.uuid4()
     company = Company(
         id=company_id,
@@ -64,7 +66,7 @@ async def test_user(session: AsyncSession):
         id=user_id,
         name="Test User",
         email=user_email,
-        password_hash="hashed_password",
+        password_hash=UserService.hash_password("password123"),
         company_id=company_id,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow()
@@ -96,7 +98,17 @@ async def test_user(session: AsyncSession):
 @pytest_asyncio.fixture
 async def client(test_user: UserResponse, request) -> AsyncClient:
     async def override_get_user_logged():
-        return test_user
+        async with async_session_factory_test() as sess:
+            from app.database.models.user import User
+            from app.database.models.company_user import CompanyUser
+            from sqlmodel import select
+            u = (await sess.execute(select(User).where(User.id == test_user.id))).scalar_one_or_none()
+            if not u:
+                return test_user
+            cu = (await sess.execute(select(CompanyUser).where(CompanyUser.user_id == u.id, CompanyUser.company_id == u.company_id))).scalar_one_or_none()
+            perm = cu.permission if cu else None
+            job_title = cu.job_title if cu else None
+            return UserResponse(**u.model_dump(), permission=perm, job_title=job_title)
         
     async def override_get_session():
         async with async_session_factory_test() as session:

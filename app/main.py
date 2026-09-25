@@ -1,5 +1,7 @@
+from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from app.config import settings
 from app.api.router import router
@@ -9,6 +11,9 @@ from app.api.tokens import decode_jwt_token
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    uploads_path = Path("uploads")
+    (uploads_path / "avatars").mkdir(parents=True, exist_ok=True)
+    (uploads_path / "company-logos").mkdir(parents=True, exist_ok=True)
     yield
 
 
@@ -19,6 +24,10 @@ app = FastAPI(
     version="0.1.0",
     debug=settings.DEBUG,
 )
+
+uploads_dir = Path("uploads")
+uploads_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,

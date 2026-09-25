@@ -133,3 +133,6 @@ dmypy.json
 # Docker volumes
 postgres_data/
 redis_data/
+
+# Uploaded files
+uploads/

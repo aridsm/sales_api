@@ -1,5 +1,5 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, UploadFile, status
 from fastapi.security import OAuth2PasswordRequestForm
 from app.api.schemas.user import (
     UserCreate,
@@ -7,6 +7,7 @@ from app.api.schemas.user import (
     UserResponse,
     TokenResponse,
     RefreshToken,
+    ChangePasswordRequest,
 )
 from app.api.schemas.company import (
     SwitchCompanyRequest,
@@ -17,7 +18,12 @@ from app.api.dependencies import (
     UserLoggedDep,
     UserServiceDep,
     CompanyServiceDep,
+    SessionDependency,
 )
+from app.database.models.company_user import CompanyUser
+from app.enums.company import CompanyPermission
+from sqlmodel import select
+from app.api.routes.uploads import AVATARS_DIR, save_upload_file, ensure_upload_dirs
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -53,9 +59,62 @@ async def delete_me(user: UserLoggedDep, service: UserServiceDep):
 
 
 @router.patch("/me", response_model=UserResponse)
-async def update_me(body: UserUpdate, user: UserLoggedDep, service: UserServiceDep):
-    updated_user = await service.update(user.id, body.model_dump(exclude_unset=True))
-    return UserResponse(**updated_user.model_dump(), permission=user.permission)
+async def update_me(
+    body: UserUpdate,
+    user: UserLoggedDep,
+    service: UserServiceDep,
+    session: SessionDependency,
+):
+    data = body.model_dump(exclude_unset=True)
+    job_title = data.pop("job_title", None)
+
+    updated_user = await service.update(user.id, data)
+
+    final_job_title = user.job_title
+    if job_title is not None and user.company_id:
+        if user.permission == CompanyPermission.ADMIN:
+            cu_res = await session.execute(
+                select(CompanyUser).where(
+                    CompanyUser.user_id == user.id,
+                    CompanyUser.company_id == user.company_id,
+                )
+            )
+            company_user = cu_res.scalar_one_or_none()
+            if company_user:
+                company_user.job_title = job_title
+                await session.commit()
+                final_job_title = job_title
+
+    return UserResponse(
+        **updated_user.model_dump(),
+        permission=user.permission,
+        job_title=final_job_title,
+    )
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    body: ChangePasswordRequest,
+    user: UserLoggedDep,
+    service: UserServiceDep,
+):
+    await service.change_password(user.id, body.current_password, body.new_password)
+
+
+@router.post("/me/avatar", response_model=UserResponse)
+async def upload_my_avatar(
+    user: UserLoggedDep,
+    service: UserServiceDep,
+    file: UploadFile = File(...),
+):
+    ensure_upload_dirs()
+    url = await save_upload_file(file, AVATARS_DIR, "avatars")
+    updated_user = await service.update(user.id, {"avatar_url": url})
+    return UserResponse(
+        **updated_user.model_dump(),
+        permission=user.permission,
+        job_title=user.job_title,
+    )
 
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
@@ -68,11 +127,24 @@ async def switch_company(
     body: SwitchCompanyRequest,
     user: UserLoggedDep,
     company_service: CompanyServiceDep,
+    session: SessionDependency,
 ):
     new_permission = await company_service.switch_company(user.id, body.company_id)
+    cu_res = await session.execute(
+        select(CompanyUser).where(
+            CompanyUser.user_id == user.id,
+            CompanyUser.company_id == body.company_id,
+        )
+    )
+    cu = cu_res.scalar_one_or_none()
+    new_job_title = cu.job_title if cu else None
     return UserResponse(
-        **{**user.model_dump(exclude=["permission"]), "company_id": body.company_id},
+        **{
+            **user.model_dump(exclude=["permission", "job_title"]),
+            "company_id": body.company_id,
+        },
         permission=new_permission,
+        job_title=new_job_title,
     )
 
 

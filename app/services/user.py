@@ -125,6 +125,20 @@ class UserService:
         await self.session.delete(user)
         await self.session.commit()
 
+    async def change_password(
+        self, id: uuid.UUID, current_password: str, new_password: str
+    ) -> None:
+        user = await self.get_by_id(id)
+
+        if not self.verify_password(current_password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "errorInvalidCurrentPassword"},
+            )
+
+        user.password_hash = self.hash_password(new_password)
+        await self.session.commit()
+
     @staticmethod
     def hash_password(password: str) -> str:
         return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")

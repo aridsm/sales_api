@@ -54,6 +54,7 @@ async def get_user_logged(
         )
 
     permission = None
+    job_title = None
     if user.company_id:
         response = await session.execute(
             select(CompanyUser).where(
@@ -64,14 +65,12 @@ async def get_user_logged(
         company_user = response.scalar_one_or_none()
         if company_user:
             permission = company_user.permission
+            job_title = company_user.job_title
 
     return UserResponse(
-        id=user.id,
-        name=user.name,
-        email=user.email,
-        created_at=user.created_at,
-        company_id=user.company_id,
+        **user.model_dump(),
         permission=permission,
+        job_title=job_title,
     )
 
 

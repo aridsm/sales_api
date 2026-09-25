@@ -78,8 +78,21 @@ class CompanyService:
             {
                 "id": row[0].id,
                 "name": row[0].name,
+                "logo_url": row[0].logo_url,
+                "document": row[0].document,
+                "email": row[0].email,
+                "phone": row[0].phone,
+                "website": row[0].website,
+                "zip_code": row[0].zip_code,
+                "street": row[0].street,
+                "number": row[0].number,
+                "complement": row[0].complement,
+                "neighborhood": row[0].neighborhood,
+                "city": row[0].city,
+                "state": row[0].state,
                 "permission": row[1],
-                "created_at": row[2],
+                "created_at": row[0].created_at,
+                "updated_at": row[0].updated_at,
             }
             for row in rows
         ]
@@ -91,14 +104,23 @@ class CompanyService:
             total_pages=ceil(total_items / page_size) if page_size > 0 else 1,
         )
 
+    async def get_company_by_id(
+        self, company_id: uuid.UUID, user_id: uuid.UUID
+    ) -> Company:
+        await self._check_user_in_company(company_id, user_id)
+        return await self._get_company(company_id)
+
     async def update_company(
-        self, company_id: uuid.UUID, name: str, user_id: uuid.UUID
+        self, company_id: uuid.UUID, data: dict, user_id: uuid.UUID
     ) -> Company:
         await self._check_admin(company_id, user_id)
 
         company = await self._get_company(company_id)
 
-        company.name = name
+        for key, value in data.items():
+            if value is not None:
+                setattr(company, key, value)
+
         await self.session.commit()
         await self.session.refresh(company)
         return company
@@ -129,8 +151,7 @@ class CompanyService:
         query = (
             select(
                 CompanyUser,
-                User.name.label("user_name"),
-                User.email.label("user_email"),
+                User,
             )
             .join(User, User.id == CompanyUser.user_id)
             .where(CompanyUser.company_id == company_id)
@@ -159,15 +180,26 @@ class CompanyService:
 
         items = [
             {
-                "id": row[0].id,
-                "company_id": row[0].company_id,
-                "user_id": row[0].user_id,
-                "user_name": row[1],
-                "user_email": row[2],
-                "permission": row[0].permission,
-                "created_at": row[0].created_at,
+                "id": cu.id,
+                "company_id": cu.company_id,
+                "user_id": cu.user_id,
+                "user_name": u.name,
+                "user_email": u.email,
+                "user_avatar_url": u.avatar_url,
+                "user_phone": u.phone,
+                "user_job_title": cu.job_title,
+                "user_document": u.document,
+                "user_zip_code": u.zip_code,
+                "user_street": u.street,
+                "user_number": u.number,
+                "user_complement": u.complement,
+                "user_neighborhood": u.neighborhood,
+                "user_city": u.city,
+                "user_state": u.state,
+                "permission": cu.permission,
+                "created_at": cu.created_at,
             }
-            for row in rows
+            for cu, u in rows
         ]
 
         return PaginatedResponse(
@@ -231,6 +263,80 @@ class CompanyService:
         await self.session.refresh(invitation)
         return invitation
 
+    async def update_company_user(
+        self,
+        company_id: uuid.UUID,
+        target_user_id: uuid.UUID,
+        data: dict,
+        admin_id: uuid.UUID,
+    ) -> dict:
+        await self._check_admin(company_id, admin_id)
+        res = await self.session.execute(
+            select(CompanyUser, User)
+            .join(User, User.id == CompanyUser.user_id)
+            .where(
+                CompanyUser.company_id == company_id,
+                CompanyUser.user_id == target_user_id,
+            )
+        )
+
+        row = res.first()
+        if not row:
+            raise HTTPException(
+                status_code=404, detail={"error": "errorEntityNotFound"}
+            )
+        company_user, user = row
+
+        permission = data.get("permission")
+        if permission is not None:
+            if (
+                company_user.permission == CompanyPermission.ADMIN
+                and permission != CompanyPermission.ADMIN
+            ):
+                admins_res = await self.session.execute(
+                    select(CompanyUser).where(
+                        CompanyUser.company_id == company_id,
+                        CompanyUser.permission == CompanyPermission.ADMIN,
+                        CompanyUser.user_id != target_user_id,
+                    )
+                )
+                has_other_admins = admins_res.scalars().first()
+                if not has_other_admins:
+                    raise HTTPException(
+                        status_code=400,
+                        detail={"error": "errorCannotHaveNoAdministrator"},
+                    )
+            company_user.permission = permission
+
+        if "job_title" in data:
+            company_user.job_title = data["job_title"]
+        elif "user_job_title" in data:
+            company_user.job_title = data["user_job_title"]
+
+        await self.session.commit()
+        await self.session.refresh(company_user)
+
+        return {
+            "id": company_user.id,
+            "company_id": company_user.company_id,
+            "user_id": company_user.user_id,
+            "user_name": user.name,
+            "user_email": user.email,
+            "user_avatar_url": user.avatar_url,
+            "user_phone": user.phone,
+            "user_job_title": company_user.job_title,
+            "user_document": user.document,
+            "user_zip_code": user.zip_code,
+            "user_street": user.street,
+            "user_number": user.number,
+            "user_complement": user.complement,
+            "user_neighborhood": user.neighborhood,
+            "user_city": user.city,
+            "user_state": user.state,
+            "permission": company_user.permission,
+            "created_at": company_user.created_at,
+        }
+
     async def update_user_permission(
         self,
         company_id: uuid.UUID,
@@ -238,39 +344,9 @@ class CompanyService:
         permission: CompanyPermission,
         admin_id: uuid.UUID,
     ):
-        await self._check_admin(company_id, admin_id)
-        res = await self.session.execute(
-            select(CompanyUser).where(
-                CompanyUser.company_id == company_id,
-                CompanyUser.user_id == target_user_id,
-            )
+        return await self.update_company_user(
+            company_id, target_user_id, {"permission": permission}, admin_id
         )
-
-        company_user = res.scalar_one_or_none()
-        if not company_user:
-            raise HTTPException(
-                status_code=404, detail={"error": "errorEntityNotFound"}
-            )
-
-        if company_user.permission == CompanyPermission.ADMIN and permission != CompanyPermission.ADMIN:
-            admins_res = await self.session.execute(
-                select(CompanyUser).where(
-                    CompanyUser.company_id == company_id,
-                    CompanyUser.permission == CompanyPermission.ADMIN,
-                    CompanyUser.user_id != target_user_id,
-                )
-            )
-            has_other_admins = admins_res.scalars().first()
-            if not has_other_admins:
-                raise HTTPException(
-                    status_code=400,
-                    detail={"error": "errorCannotHaveNoAdministrator"},
-                )
-
-        company_user.permission = permission
-        await self.session.commit()
-        await self.session.refresh(company_user)
-        return company_user
 
     async def remove_me(self, company_id: uuid.UUID, user_id: uuid.UUID):
         await self._check_user_in_company(company_id, user_id)

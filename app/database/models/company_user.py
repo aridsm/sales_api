@@ -23,6 +23,7 @@ class CompanyUser(SQLModel, table=True):
     permission: CompanyPermission = Field(
         default=CompanyPermission.VIEW, nullable=False
     )
+    job_title: str | None = Field(default=None, max_length=100)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         nullable=False,

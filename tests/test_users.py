@@ -78,23 +78,102 @@ async def test_access_protected_routes_without_active_company(unauth_client: Asy
         updated_at=db_user.updated_at
     )
 
-    app.dependency_overrides[get_user_logged] = lambda: user_no_company
+    try:
+        app.dependency_overrides[get_user_logged] = lambda: user_no_company
 
-    endpoints = [
-        "/categories/",
-        "/categories/amounts",
-        "/products/",
-        "/sales/",
-        "/sale_products/",
-        "/other_expenses/",
-        "/stock_entries/",
-        "/stock_entry_products/",
-        "/dashboard/chart",
-        "/dashboard/budgets",
-        "/history/",
-    ]
+        endpoints = [
+            "/categories/",
+            "/categories/amounts",
+            "/products/",
+            "/sales/",
+            "/sale_products/",
+            "/other_expenses/",
+            "/stock_entries/",
+            "/stock_entry_products/",
+            "/dashboard/chart",
+            "/dashboard/budgets",
+            "/history/",
+        ]
 
-    for endpoint in endpoints:
-        res = await unauth_client.get(endpoint)
-        assert res.status_code == 403, f"Endpoint {endpoint} returned {res.status_code} instead of 403: {res.text}"
-        assert res.json() == {"detail": {"error": "errorUserHasNoActiveCompany"}}
+        for endpoint in endpoints:
+            res = await unauth_client.get(endpoint)
+            assert res.status_code == 403, f"Endpoint {endpoint} returned {res.status_code} instead of 403: {res.text}"
+            assert res.json() == {"detail": {"error": "errorUserHasNoActiveCompany"}}
+    finally:
+        app.dependency_overrides.pop(get_user_logged, None)
+
+
+@pytest.mark.asyncio
+async def test_update_user_profile(client: AsyncClient, test_user):
+    update_data = {
+        "name": "Updated Name",
+        "phone": "+5511999998888",
+        "job_title": "Software Engineer",
+        "document": "123.456.789-00",
+        "zip_code": "01310-100",
+        "street": "Avenida Paulista",
+        "number": "1000",
+        "complement": "Apto 42",
+        "neighborhood": "Bela Vista",
+        "city": "São Paulo",
+        "state": "SP",
+    }
+    res = await client.patch("/users/me", json=update_data)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["name"] == "Updated Name"
+    assert data["phone"] == "+5511999998888"
+    assert data["job_title"] == "Software Engineer"
+    assert data["document"] == "123.456.789-00"
+    assert data["zip_code"] == "01310-100"
+    assert data["street"] == "Avenida Paulista"
+    assert data["city"] == "São Paulo"
+    assert data["state"] == "SP"
+
+    # Verify via GET /users/me
+    get_res = await client.get("/users/me")
+    assert get_res.status_code == 200
+    get_data = get_res.json()
+    assert get_data["phone"] == "+5511999998888"
+    assert get_data["job_title"] == "Software Engineer"
+
+
+@pytest.mark.asyncio
+async def test_change_password_success(client: AsyncClient, unauth_client: AsyncClient, test_user):
+    # Change password
+    res = await client.post("/users/change-password", json={
+        "current_password": "password123",
+        "new_password": "new_secure_password_456"
+    })
+    assert res.status_code == 204
+
+    # Try logging in with the new password
+    login_res = await unauth_client.post("/users/login", data={
+        "username": test_user.email,
+        "password": "new_secure_password_456"
+    })
+    assert login_res.status_code == 200
+    assert "access_token" in login_res.json()
+
+
+@pytest.mark.asyncio
+async def test_change_password_invalid_current(client: AsyncClient, test_user):
+    res = await client.post("/users/change-password", json={
+        "current_password": "wrong_old_password",
+        "new_password": "new_secure_password_456"
+    })
+    assert res.status_code == 400
+    assert res.json()["detail"]["error"] == "errorInvalidCurrentPassword"
+
+
+@pytest.mark.asyncio
+async def test_upload_my_avatar(client: AsyncClient, test_user):
+    # Create fake image bytes
+    fake_png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4"
+    files = {"file": ("avatar.png", fake_png, "image/png")}
+
+    res = await client.post("/users/me/avatar", files=files)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["avatar_url"] is not None
+    assert "/static/uploads/avatars/" in data["avatar_url"]

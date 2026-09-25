@@ -1,5 +1,5 @@
 from uuid import UUID
-from fastapi import APIRouter, status, Query
+from fastapi import APIRouter, File, UploadFile, status, Query
 from typing import List
 from app.api.schemas.company import (
     CompanyCreate,
@@ -18,6 +18,7 @@ from app.api.dependencies import (
 )
 from app.api.utils.paginated_response import PaginatedResponse
 from app.enums.company import InvitationStatus
+from app.api.routes.uploads import COMPANY_LOGOS_DIR, save_upload_file, ensure_upload_dirs
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
@@ -44,6 +45,15 @@ async def get_my_companies(
     )
 
 
+@router.get("/{company_id}", response_model=CompanyResponse)
+async def get_company(
+    company_id: UUID,
+    user: UserLoggedDep,
+    service: CompanyServiceDep,
+):
+    return await service.get_company_by_id(company_id, user.id)
+
+
 @router.patch("/{company_id}", response_model=CompanyResponse)
 async def update_company(
     company_id: UUID,
@@ -51,7 +61,22 @@ async def update_company(
     user: UserLoggedDep,
     service: CompanyServiceDep,
 ):
-    return await service.update_company(company_id, body.name, user.id)
+    return await service.update_company(
+        company_id, body.model_dump(exclude_unset=True), user.id
+    )
+
+
+@router.post("/{company_id}/logo", response_model=CompanyResponse)
+async def upload_company_logo(
+    company_id: UUID,
+    user: UserLoggedDep,
+    service: CompanyServiceDep,
+    file: UploadFile = File(...),
+):
+    await service._check_admin(company_id, user.id)
+    ensure_upload_dirs()
+    url = await save_upload_file(file, COMPANY_LOGOS_DIR, "company-logos")
+    return await service.update_company(company_id, {"logo_url": url}, user.id)
 
 
 @router.delete("/{company_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -126,15 +151,15 @@ async def invite_user_to_company(
 @router.patch(
     "/{company_id}/users/{target_user_id}", response_model=CompanyUserResponse
 )
-async def update_user_permission(
+async def update_company_user(
     company_id: UUID,
     target_user_id: UUID,
     body: CompanyUserUpdate,
     user: UserLoggedDep,
     service: CompanyServiceDep,
 ):
-    cu = await service.update_user_permission(
-        company_id, target_user_id, body.permission, user.id
+    cu = await service.update_company_user(
+        company_id, target_user_id, body.model_dump(exclude_unset=True), user.id
     )
     return cu
 
