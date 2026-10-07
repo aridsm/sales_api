@@ -32,5 +32,19 @@ class RedisClient:
         except Exception:
             return True
 
+    async def set_value(
+        self, key: str, value: str, expire_seconds: int | None = None
+    ) -> None:
+        if expire_seconds:
+            await self.redis.setex(key, expire_seconds, value)
+        else:
+            await self.redis.set(key, value)
+
+    async def get_value(self, key: str) -> str | None:
+        return await self.redis.get(key)
+
+    async def delete_key(self, key: str) -> None:
+        await self.redis.delete(key)
+
 
 redis_db = RedisClient()

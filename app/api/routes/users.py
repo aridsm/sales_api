@@ -1,5 +1,14 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.security import OAuth2PasswordRequestForm
 from app.api.schemas.user import (
     UserCreate,
@@ -8,6 +17,11 @@ from app.api.schemas.user import (
     TokenResponse,
     RefreshToken,
     ChangePasswordRequest,
+    VerifyEmailRequest,
+    ResendVerificationRequest,
+    MessageResponse,
+    RequestEmailChangeRequest,
+    ConfirmEmailChangeRequest,
 )
 from app.api.schemas.company import (
     SwitchCompanyRequest,
@@ -24,6 +38,7 @@ from app.database.models.company_user import CompanyUser
 from app.enums.company import CompanyPermission
 from sqlmodel import select
 from app.database.redis import redis_db
+from app.services.email import EmailService
 from app.api.routes.uploads import (
     AVATARS_DIR,
     save_upload_file,
@@ -35,7 +50,12 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
-async def signup(request: Request, body: UserCreate, service: UserServiceDep):
+async def signup(
+    request: Request,
+    body: UserCreate,
+    service: UserServiceDep,
+    background_tasks: BackgroundTasks,
+):
     client_ip = request.client.host if request.client else "unknown"
     allowed = await redis_db.check_rate_limit(
         f"rate_limit:signup:{client_ip}", max_requests=10, window_seconds=3600
@@ -48,7 +68,63 @@ async def signup(request: Request, body: UserCreate, service: UserServiceDep):
                 "message": "Too many signup attempts. Please try again later.",
             },
         )
-    return await service.signup(body)
+    user, token = await service.signup(body)
+    background_tasks.add_task(
+        EmailService.send_verification_email,
+        email=user.email,
+        name=user.name,
+        token=token,
+    )
+    return {
+        "message": "User created. Please check your email to verify your account.",
+        "email": user.email,
+        "is_verified": user.is_verified,
+    }
+
+
+@router.post("/verify-email", response_model=TokenResponse)
+async def verify_email(
+    body: VerifyEmailRequest,
+    service: UserServiceDep,
+):
+    return await service.verify_email(body.token)
+
+
+@router.post("/resend-verification", response_model=MessageResponse)
+async def resend_verification(
+    request: Request,
+    body: ResendVerificationRequest,
+    service: UserServiceDep,
+    background_tasks: BackgroundTasks,
+):
+    client_ip = request.client.host if request.client else "unknown"
+    email_clean = body.email.lower().strip()
+    allowed = await redis_db.check_rate_limit(
+        f"rate_limit:resend_verification:{client_ip}:{email_clean}",
+        max_requests=5,
+        window_seconds=300,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "errorRateLimitExceeded",
+                "message": "Too many verification requests. Please wait a few minutes before trying again.",
+            },
+        )
+
+    user, token = await service.resend_verification(body.email)
+    if user and token:
+        background_tasks.add_task(
+            EmailService.send_verification_email,
+            email=user.email,
+            name=user.name,
+            token=token,
+        )
+
+    return MessageResponse(
+        message="If the email is registered and not yet verified, a new confirmation link has been sent."
+    )
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -143,6 +219,47 @@ async def change_password(
             },
         )
     await service.change_password(user.id, body.current_password, body.new_password)
+
+
+@router.post("/request-email-change", response_model=MessageResponse)
+async def request_email_change(
+    body: RequestEmailChangeRequest,
+    user: UserLoggedDep,
+    service: UserServiceDep,
+    background_tasks: BackgroundTasks,
+):
+    allowed = await redis_db.check_rate_limit(
+        f"rate_limit:email_change:{user.id}", max_requests=5, window_seconds=300
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "errorRateLimitExceeded",
+                "message": "Too many email change requests. Please wait a few minutes before trying again.",
+            },
+        )
+
+    new_email, token = await service.request_email_change(
+        user.id, body.new_email, body.password
+    )
+    background_tasks.add_task(
+        EmailService.send_email_change_verification,
+        email=new_email,
+        name=user.name,
+        token=token,
+    )
+    return MessageResponse(
+        message="If the email is valid and available, a confirmation link has been sent to the new email address."
+    )
+
+
+@router.post("/confirm-email-change", response_model=TokenResponse)
+async def confirm_email_change(
+    body: ConfirmEmailChangeRequest,
+    service: UserServiceDep,
+):
+    return await service.confirm_email_change(body.token)
 
 
 @router.post("/me/avatar", response_model=UserResponse)

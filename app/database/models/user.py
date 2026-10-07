@@ -32,6 +32,13 @@ class User(SQLModel, table=True):
     neighborhood: str | None = Field(default=None, max_length=100)
     city: str | None = Field(default=None, max_length=100)
     state: str | None = Field(default=None, max_length=2)
+    is_verified: bool = Field(default=False, nullable=False)
+    verification_token: str | None = Field(default=None, max_length=255, nullable=True, index=True)
+    verification_token_expires_at: datetime | None = Field(
+        default=None,
+        nullable=True,
+        sa_type=DateTime(timezone=True),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         nullable=False,

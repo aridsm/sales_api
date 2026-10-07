@@ -28,7 +28,6 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
-    email: Optional[EmailStr] = None
     avatar_url: Optional[str] = None
     phone: Optional[str] = None
     job_title: Optional[str] = None
@@ -43,16 +42,29 @@ class UserUpdate(BaseModel):
 
 
 class ChangePasswordRequest(BaseModel):
-    current_password: str = Field(..., min_length=6)
+    current_password: str
     new_password: str = Field(..., min_length=6)
 
 
 class UserResponse(UserBase):
     id: UUID
     created_at: datetime
+    is_verified: bool = False
     company_id: UUID | None = None
     permission: CompanyPermission | None = None
     job_title: str | None = None
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str = Field(..., min_length=1)
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+
+class MessageResponse(BaseModel):
+    message: str
 
 
 class TokenResponse(BaseModel):
@@ -64,3 +76,12 @@ class TokenResponse(BaseModel):
 
 class RefreshToken(BaseModel):
     refresh_token: str
+
+
+class RequestEmailChangeRequest(BaseModel):
+    new_email: EmailStr
+    password: str
+
+
+class ConfirmEmailChangeRequest(BaseModel):
+    token: str = Field(..., min_length=1)
