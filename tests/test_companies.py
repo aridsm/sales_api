@@ -427,4 +427,72 @@ async def test_get_my_companies_includes_all_fields(client: AsyncClient, test_us
     assert "updated_at" in company_item
 
 
+@pytest.mark.asyncio
+async def test_cancel_invitation(client: AsyncClient, test_user):
+    # Create another user to invite
+    invitee_id = uuid.uuid4()
+    async with async_session_factory_test() as session:
+        invitee = User(
+            id=invitee_id,
+            name="Invitee",
+            email=f"invitee_{invitee_id}@example.com",
+            password_hash="hashed",
+            company_id=None,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+        session.add(invitee)
+        await session.commit()
+
+    # Invite user
+    inv_res = await client.post(
+        f"/companies/{test_user.company_id}/users",
+        json={"email": f"invitee_{invitee_id}@example.com", "permission": 1},
+    )
+    assert inv_res.status_code == 201
+    invitation_id = inv_res.json()["id"]
+
+    # Cancel invitation
+    del_res = await client.delete(
+        f"/companies/{test_user.company_id}/invitations/{invitation_id}"
+    )
+    assert del_res.status_code == 204
+
+    # Invitations list should now be empty
+    list_res = await client.get(f"/companies/{test_user.company_id}/invitations")
+    assert list_res.status_code == 200
+    assert len(list_res.json()) == 0
+
+
+@pytest.mark.asyncio
+async def test_delete_company_clears_company_id_for_all_users(client: AsyncClient, test_user):
+    from sqlmodel import select
+    # Create another user belonging to this company
+    member_id = uuid.uuid4()
+    async with async_session_factory_test() as session:
+        member = User(
+            id=member_id,
+            name="Member to clear",
+            email=f"clear_{member_id}@example.com",
+            password_hash="hashed",
+            company_id=test_user.company_id,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+        session.add(member)
+        await session.commit()
+
+    # Delete company
+    del_res = await client.delete(f"/companies/{test_user.company_id}")
+    assert del_res.status_code == 204
+
+    # Check both users have company_id == None
+    async with async_session_factory_test() as session:
+        u1 = (await session.execute(select(User).where(User.id == test_user.id))).scalar_one()
+        u2 = (await session.execute(select(User).where(User.id == member_id))).scalar_one()
+        assert u1.company_id is None
+        assert u2.company_id is None
+
+
+
 

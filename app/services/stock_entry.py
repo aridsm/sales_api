@@ -2,7 +2,7 @@ import uuid
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from sqlalchemy import Select, func
+from sqlalchemy import Select, func, delete
 from typing import Any
 from datetime import datetime
 
@@ -29,13 +29,14 @@ class StockEntryService(BaseService[StockEntry]):
                 func.count(StockEntryProduct.id).label("items_count"),
                 User.name.label("created_by_name"),
                 User.email.label("created_by_email"),
+                User.avatar_url.label("created_by_avatar_url"),
             )
             .outerjoin(
                 StockEntryProduct, StockEntry.id == StockEntryProduct.stock_entry_id
             )
             .outerjoin(User, StockEntry.created_by == User.id)
             .where(StockEntry.company_id == company_id)
-            .group_by(StockEntry.id, User.name, User.email)
+            .group_by(StockEntry.id, User.name, User.email, User.avatar_url)
         )
 
     async def get_all(
@@ -82,6 +83,7 @@ class StockEntryService(BaseService[StockEntry]):
         entry_dict["items_count"] = row.get("items_count", 0)
         entry_dict["created_by_name"] = row.get("created_by_name")
         entry_dict["created_by_email"] = row.get("created_by_email")
+        entry_dict["created_by_avatar_url"] = row.get("created_by_avatar_url")
         return entry_dict
 
     async def create_entry_with_products(
@@ -90,6 +92,7 @@ class StockEntryService(BaseService[StockEntry]):
         date: datetime,
         user_id: uuid.UUID,
         company_id: uuid.UUID,
+        discount: float = 0.0,
     ) -> StockEntry:
         product_quantities: dict[uuid.UUID, int] = {}
         for item in items:
@@ -113,7 +116,8 @@ class StockEntryService(BaseService[StockEntry]):
                     status_code=404, detail={"error": "errorEntityNotFound"}
                 )
 
-        total = sum(item.unit_price * item.quantity for item in items)
+        subtotal = sum(item.unit_price * item.quantity for item in items)
+        total = max(0.0, subtotal - discount)
 
         entry = StockEntry(
             user_id=user_id,
@@ -121,6 +125,7 @@ class StockEntryService(BaseService[StockEntry]):
             company_id=company_id,
             status=StockEntryStatus.OPEN,
             total=total,
+            discount=discount,
             date=date,
         )
         self.session.add(entry)
@@ -148,7 +153,7 @@ class StockEntryService(BaseService[StockEntry]):
             entity_type=EntityType.STOCK_ENTRY,
             entity_id=entry.id,
             description=f"Entrada de Estoque registrada no valor de R$ {f'{total:.2f}'.replace('.', ',')}.",
-            details={"total": total, "items_count": sum(product_quantities.values())},
+            details={"total": total, "discount": discount, "items_count": sum(product_quantities.values())},
         )
 
         await self.session.commit()
@@ -216,3 +221,62 @@ class StockEntryService(BaseService[StockEntry]):
         await self.session.refresh(entry)
 
         return await self.get_by_id(entry.id, company_id=company_id)
+
+    async def delete(
+        self,
+        id: uuid.UUID,
+        company_id: uuid.UUID | str | None = None,
+        user_id: uuid.UUID | str | None = None,
+    ):
+        entry = await self.get_by_id(id, company_id=company_id)
+        if entry.status != StockEntryStatus.CANCELED:
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "errorStockEntryMustBeCanceledBeforeDeletion"},
+            )
+
+        self.history.log_action(
+            user_id=user_id,
+            company_id=company_id,
+            action_type=ActionType.DELETE,
+            entity_type=EntityType.STOCK_ENTRY,
+            entity_id=id,
+            description=f"Entrada de Estoque #{entry.code} excluída.",
+        )
+
+        await self.session.execute(
+            delete(StockEntryProduct).where(StockEntryProduct.stock_entry_id == id)
+        )
+        await super().delete(id, company_id=company_id, user_id=user_id)
+
+    async def delete_bulk(
+        self,
+        ids: list[uuid.UUID],
+        company_id: uuid.UUID | str | None = None,
+        user_id: uuid.UUID | str | None = None,
+    ):
+        query = select(StockEntry).where(StockEntry.id.in_(ids))
+        if company_id:
+            query = query.where(StockEntry.company_id == company_id)
+        res = await self.session.execute(query)
+        entries = res.scalars().all()
+        for e in entries:
+            if e.status != StockEntryStatus.CANCELED:
+                raise HTTPException(
+                    status_code=400,
+                    detail={"error": "errorStockEntryMustBeCanceledBeforeDeletion"},
+                )
+
+        self.history.log_action(
+            user_id=user_id,
+            company_id=company_id,
+            action_type=ActionType.DELETE,
+            entity_type=EntityType.STOCK_ENTRY,
+            entity_id=ids[0] if len(ids) == 1 else uuid.uuid4(),
+            description=f"{len(ids)} entradas de estoque excluídas.",
+        )
+
+        await self.session.execute(
+            delete(StockEntryProduct).where(StockEntryProduct.stock_entry_id.in_(ids))
+        )
+        await super().delete_bulk(ids, company_id=company_id, user_id=user_id)

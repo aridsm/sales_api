@@ -316,3 +316,48 @@ class UserService:
             + (timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)),
         )
 
+    async def request_password_reset(
+        self, email: str
+    ) -> tuple[User | None, str | None]:
+        user = await self.get_by_email(email.lower().strip())
+        if not user:
+            return None, None
+
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = self.hash_token(raw_token)
+        expire_seconds = 3600  # 1 hour
+
+        payload = json.dumps({"user_id": str(user.id)})
+        await redis_db.set_value(f"pwd_reset:{token_hash}", payload, expire_seconds)
+
+        return user, raw_token
+
+    async def reset_password(self, token: str, new_password: str) -> None:
+        token_hash = self.hash_token(token)
+        key = f"pwd_reset:{token_hash}"
+        data_str = await redis_db.get_value(key)
+
+        if not data_str:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "errorInvalidOrExpiredResetToken"},
+            )
+
+        data = json.loads(data_str)
+        user_id = uuid.UUID(data["user_id"])
+        user = await self.get_by_id(user_id)
+
+        if not user:
+            await redis_db.delete_key(key)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "errorUserNotFound"},
+            )
+
+        user.password_hash = self.hash_password(new_password)
+        user.updated_at = datetime.now(timezone.utc)
+        await self.session.commit()
+        await self.session.refresh(user)
+
+        await redis_db.delete_key(key)
+

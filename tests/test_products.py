@@ -126,3 +126,29 @@ async def test_delete_bulk_products_with_done_sale(client: AsyncClient, test_use
     assert del_res.status_code == 400
     assert del_res.json()["detail"]["error"] == "errorHasDoneSales"
     assert "Product Bulk 1" in del_res.json()["detail"]["products"]
+
+
+@pytest.mark.asyncio
+async def test_delete_product_with_stock_entry(client: AsyncClient, test_user):
+    cat_res = await client.post("/categories/", json={"name": "TempStock", "color": "#111111", "type": 1})
+    category_id = cat_res.json()["id"]
+
+    prod_res = await client.post("/products/", json={
+        "name": "Product With Stock Entry",
+        "category_id": category_id,
+        "price": 10.0,
+        "stock_amount": 5
+    })
+    product_id = prod_res.json()["id"]
+
+    entry_res = await client.post("/stock_entries/", json={
+        "date": "2026-10-13T00:00:00Z",
+        "products": [{"product_id": product_id, "quantity": 2, "unit_price": 5.0}],
+        "discount": 0.0,
+    })
+    assert entry_res.status_code == 201
+
+    del_res = await client.delete(f"/products/{product_id}")
+    assert del_res.status_code == 400
+    assert del_res.json()["detail"]["error"] == "errorHasStockEntries"
+

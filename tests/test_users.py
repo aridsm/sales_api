@@ -2,6 +2,7 @@ import pytest
 from httpx import AsyncClient
 import uuid
 
+
 @pytest.mark.asyncio
 async def test_user_signup_and_login(unauth_client: AsyncClient, session):
     from app.database.models.user import User
@@ -37,7 +38,9 @@ async def test_user_signup_and_login(unauth_client: AsyncClient, session):
         },
     )
     assert unverified_login_response.status_code == 403
-    assert unverified_login_response.json()["detail"]["error"] == "errorEmailNotVerified"
+    assert (
+        unverified_login_response.json()["detail"]["error"] == "errorEmailNotVerified"
+    )
 
     # Retrieve user from DB to get the stored token hash
     query = select(User).where(User.email == test_email)
@@ -56,7 +59,10 @@ async def test_user_signup_and_login(unauth_client: AsyncClient, session):
         json={"token": "wrong_token_value"},
     )
     assert invalid_verify_res.status_code == 400
-    assert invalid_verify_res.json()["detail"]["error"] == "errorInvalidOrExpiredVerificationToken"
+    assert (
+        invalid_verify_res.json()["detail"]["error"]
+        == "errorInvalidOrExpiredVerificationToken"
+    )
 
     # 4. Verify Email with valid token
     verify_res = await unauth_client.post(
@@ -126,7 +132,7 @@ async def test_get_me(client: AsyncClient, test_user):
     # Since we use `client`, it is already authenticated as `test_user`
     me_response = await client.get("/users/me")
     assert me_response.status_code == 200
-    
+
     me_data = me_response.json()
     assert me_data["email"] == test_user.email
     assert me_data["name"] == test_user.name
@@ -134,7 +140,9 @@ async def test_get_me(client: AsyncClient, test_user):
 
 
 @pytest.mark.asyncio
-async def test_access_protected_routes_without_active_company(unauth_client: AsyncClient, session):
+async def test_access_protected_routes_without_active_company(
+    unauth_client: AsyncClient, session
+):
     from app.database.models.user import User
     from app.api.dependencies import get_user_logged
     from app.api.schemas.user import UserResponse
@@ -149,7 +157,7 @@ async def test_access_protected_routes_without_active_company(unauth_client: Asy
         password_hash="hashed_password",
         company_id=None,
         created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
+        updated_at=datetime.utcnow(),
     )
     session.add(db_user)
     await session.commit()
@@ -162,7 +170,7 @@ async def test_access_protected_routes_without_active_company(unauth_client: Asy
         company_id=None,
         permission=None,
         created_at=db_user.created_at,
-        updated_at=db_user.updated_at
+        updated_at=db_user.updated_at,
     )
 
     try:
@@ -184,7 +192,9 @@ async def test_access_protected_routes_without_active_company(unauth_client: Asy
 
         for endpoint in endpoints:
             res = await unauth_client.get(endpoint)
-            assert res.status_code == 403, f"Endpoint {endpoint} returned {res.status_code} instead of 403: {res.text}"
+            assert res.status_code == 403, (
+                f"Endpoint {endpoint} returned {res.status_code} instead of 403: {res.text}"
+            )
             assert res.json() == {"detail": {"error": "errorUserHasNoActiveCompany"}}
     finally:
         app.dependency_overrides.pop(get_user_logged, None)
@@ -226,29 +236,37 @@ async def test_update_user_profile(client: AsyncClient, test_user):
 
 
 @pytest.mark.asyncio
-async def test_change_password_success(client: AsyncClient, unauth_client: AsyncClient, test_user):
+async def test_change_password_success(
+    client: AsyncClient, unauth_client: AsyncClient, test_user
+):
     # Change password
-    res = await client.post("/users/change-password", json={
-        "current_password": "password123",
-        "new_password": "new_secure_password_456"
-    })
+    res = await client.post(
+        "/users/change-password",
+        json={
+            "current_password": "password123",
+            "new_password": "new_secure_password_456",
+        },
+    )
     assert res.status_code == 204
 
     # Try logging in with the new password
-    login_res = await unauth_client.post("/users/login", data={
-        "username": test_user.email,
-        "password": "new_secure_password_456"
-    })
+    login_res = await unauth_client.post(
+        "/users/login",
+        data={"username": test_user.email, "password": "new_secure_password_456"},
+    )
     assert login_res.status_code == 200
     assert "access_token" in login_res.json()
 
 
 @pytest.mark.asyncio
 async def test_change_password_invalid_current(client: AsyncClient, test_user):
-    res = await client.post("/users/change-password", json={
-        "current_password": "wrong_old_password",
-        "new_password": "new_secure_password_456"
-    })
+    res = await client.post(
+        "/users/change-password",
+        json={
+            "current_password": "wrong_old_password",
+            "new_password": "new_secure_password_456",
+        },
+    )
     assert res.status_code == 400
     assert res.json()["detail"]["error"] == "errorInvalidCurrentPassword"
 
@@ -289,7 +307,9 @@ async def test_change_password_rate_limit(client: AsyncClient, test_user):
 
 
 @pytest.mark.asyncio
-async def test_email_change_flow(client: AsyncClient, unauth_client: AsyncClient, session, test_user):
+async def test_email_change_flow(
+    client: AsyncClient, unauth_client: AsyncClient, session, test_user
+):
     from app.services.user import UserService
     from app.database.redis import redis_db
     import json
@@ -373,3 +393,50 @@ async def test_email_change_flow(client: AsyncClient, unauth_client: AsyncClient
     assert login_res.status_code == 200
     assert "access_token" in login_res.json()
 
+
+@pytest.mark.asyncio
+async def test_forgot_and_reset_password_flow(unauth_client: AsyncClient, test_user):
+    from app.services.user import UserService
+    from app.database.redis import redis_db
+    import json
+
+    res = await unauth_client.post(
+        "/users/forgot-password",
+        json={"email": "nonexistent@example.com"},
+    )
+    assert res.status_code == 200
+    assert "message" in res.json()
+
+    res = await unauth_client.post(
+        "/users/forgot-password",
+        json={"email": test_user.email},
+    )
+    assert res.status_code == 200
+
+    raw_token = "pwd_reset_test_token_123"
+    token_hash = UserService.hash_token(raw_token)
+    payload = json.dumps({"user_id": str(test_user.id)})
+    await redis_db.set_value(f"pwd_reset:{token_hash}", payload, 3600)
+
+    res_inv = await unauth_client.post(
+        "/users/reset-password",
+        json={"token": "invalid_token_999", "new_password": "brand_new_password_123"},
+    )
+    assert res_inv.status_code == 400
+    assert res_inv.json()["detail"]["error"] == "errorInvalidOrExpiredResetToken"
+
+    res_reset = await unauth_client.post(
+        "/users/reset-password",
+        json={"token": raw_token, "new_password": "brand_new_password_123"},
+    )
+    assert res_reset.status_code == 200
+
+    login_res = await unauth_client.post(
+        "/users/login",
+        data={
+            "username": test_user.email,
+            "password": "brand_new_password_123",
+        },
+    )
+    assert login_res.status_code == 200
+    assert "access_token" in login_res.json()

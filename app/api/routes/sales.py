@@ -107,7 +107,11 @@ async def create_sale(
     service: SaleServiceDep,
 ):
     return await service.create_sale_with_products(
-        body.products, body.date, user_id=user.id, company_id=user.company_id
+        body.products,
+        body.date,
+        user_id=user.id,
+        company_id=user.company_id,
+        discount=body.discount,
     )
 
 
@@ -128,7 +132,9 @@ async def delete_bulk_sales(
     user: CanEditDep,
     service: SaleServiceDep,
 ):
-    await service.delete_bulk(body.ids, company_id=str(user.company_id))
+    await service.delete_bulk(
+        body.ids, company_id=str(user.company_id), user_id=user.id
+    )
 
 
 @router.delete("/{sale_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -137,4 +143,4 @@ async def delete_sale(
     user: CanEditDep,
     service: SaleServiceDep,
 ):
-    await service.delete(sale_id, company_id=str(user.company_id))
+    await service.delete(sale_id, company_id=str(user.company_id), user_id=user.id)

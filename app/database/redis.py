@@ -1,15 +1,32 @@
+import asyncio
+import logging
 from redis.asyncio import Redis
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class RedisClient:
     def __init__(self):
-        self.redis = Redis(
-            host=settings.REDIS_HOST,
-            port=settings.REDIS_PORT,
-            db=settings.REDIS_DB,
-            decode_responses=True,
-        )
+        self._redis = None
+        self._loop = None
+
+    @property
+    def redis(self) -> Redis:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if self._redis is None or self._loop != loop:
+            self._loop = loop
+            self._redis = Redis(
+                host=settings.REDIS_HOST,
+                port=settings.REDIS_PORT,
+                db=settings.REDIS_DB,
+                decode_responses=True,
+            )
+        return self._redis
 
     async def add_token_to_blacklist(self, jti: str) -> None:
         await self.redis.set(jti, "")
@@ -29,7 +46,8 @@ class RedisClient:
             if current == 1:
                 await self.redis.expire(key, window_seconds)
             return current <= max_requests
-        except Exception:
+        except Exception as e:
+            logger.warning("Redis check_rate_limit failed for key %s: %s", key, e)
             return True
 
     async def set_value(

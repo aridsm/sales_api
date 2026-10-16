@@ -117,6 +117,19 @@ async def get_invitations(
     return await service.get_company_invitations(company_id, user.id, status=status)
 
 
+@router.delete(
+    "/{company_id}/invitations/{invitation_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def cancel_invitation(
+    company_id: UUID,
+    invitation_id: UUID,
+    user: UserLoggedDep,
+    service: CompanyServiceDep,
+):
+    await service.cancel_invitation(company_id, invitation_id, user.id)
+
+
 @router.post(
     "/{company_id}/users",
     response_model=CompanyInvitationResponse,

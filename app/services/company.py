@@ -130,12 +130,12 @@ class CompanyService:
 
         company = await self._get_company(company_id)
 
+        from sqlalchemy import update
+        await self.session.execute(
+            update(User).where(User.company_id == company_id).values(company_id=None)
+        )
+
         await self.session.delete(company)
-
-        user_res = await self.session.execute(select(User).where(User.id == user_id))
-        user = user_res.scalar_one_or_none()
-        user.company_id = None
-
         await self.session.commit()
 
     async def get_company_users(
@@ -552,8 +552,29 @@ class CompanyService:
         await self.session.commit()
         return company_user.permission
 
+    async def cancel_invitation(
+        self, company_id: uuid.UUID, invitation_id: uuid.UUID, admin_id: uuid.UUID
+    ):
+        await self._check_admin(company_id, admin_id)
+
+        inv_res = await self.session.execute(
+            select(CompanyInvitation).where(
+                CompanyInvitation.id == invitation_id,
+                CompanyInvitation.company_id == company_id,
+                CompanyInvitation.status == InvitationStatus.PENDING,
+            )
+        )
+        invitation = inv_res.scalar_one_or_none()
+        if not invitation:
+            raise HTTPException(
+                status_code=404, detail={"error": "errorEntityNotFound"}
+            )
+
+        await self.session.delete(invitation)
+        await self.session.commit()
+
     async def _get_invitation(
-        self, invitation_id: int, user_id: int
+        self, invitation_id: uuid.UUID, user_id: uuid.UUID
     ) -> CompanyInvitation:
         inv_res = await self.session.execute(
             select(CompanyInvitation).where(

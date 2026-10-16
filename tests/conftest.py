@@ -14,7 +14,7 @@ import uuid
 os.environ["DB_HOST"] = os.environ.get("DB_TEST_HOST", "localhost")
 os.environ["DB_PORT"] = os.environ.get("DB_TEST_PORT", "5433")
 os.environ["DB_NAME"] = os.environ.get("DB_TEST_NAME", "sales_api_test")
-os.environ["REDIS_HOST"] = os.environ.get("REDIS_TEST_HOST", os.environ.get("REDIS_HOST", "localhost"))
+os.environ["REDIS_HOST"] = os.environ.get("REDIS_TEST_HOST", "localhost")
 
 from app.main import app
 from app.config import settings

@@ -5,6 +5,7 @@ import uuid
 from app.services.base import BaseService
 from app.database.models.product import Product
 from app.database.models.sale_product import SaleProduct
+from app.database.models.stock_entry_product import StockEntryProduct
 from app.database.models.sale import Sale
 from app.enums.sale import SaleStatus
 from app.services.history import HistoryService
@@ -62,20 +63,39 @@ class ProductService(BaseService[Product]):
         company_id: uuid.UUID | str | None = None,
         user_id: uuid.UUID | str | None = None,
     ):
-        query = (
+        query_sale = (
             select(Product.name)
             .join(SaleProduct, SaleProduct.product_id == Product.id)
-            .join(Sale, Sale.id == SaleProduct.sale_id)
-            .where(Product.id == id, Sale.status == SaleStatus.DONE)
+            .where(Product.id == id)
         )
         if company_id:
-            query = query.where(Product.company_id == company_id)
+            query_sale = query_sale.where(Product.company_id == company_id)
 
-        result = await self.session.execute(query)
-        product_name = result.scalar_one_or_none()
+        result_sale = await self.session.execute(query_sale)
+        product_name = result_sale.scalar_one_or_none()
 
         if product_name is not None:
-            raise HTTPException(status_code=400, detail={"error": "errorHasDoneSales"})
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "errorHasDoneSales", "name": product_name, "products": [product_name]},
+            )
+
+        query_stock = (
+            select(Product.name)
+            .join(StockEntryProduct, StockEntryProduct.product_id == Product.id)
+            .where(Product.id == id)
+        )
+        if company_id:
+            query_stock = query_stock.where(Product.company_id == company_id)
+
+        result_stock = await self.session.execute(query_stock)
+        product_name_stock = result_stock.scalar_one_or_none()
+
+        if product_name_stock is not None:
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "errorHasStockEntries", "name": product_name_stock, "products": [product_name_stock]},
+            )
 
         item_db = await self.get_by_id(id, company_id=company_id)
         self.history.log_action(
@@ -95,22 +115,38 @@ class ProductService(BaseService[Product]):
         company_id: uuid.UUID | str | None = None,
         user_id: uuid.UUID | str | None = None,
     ):
-        query = (
+        query_sale = (
             select(Product.name)
             .join(SaleProduct, SaleProduct.product_id == Product.id)
-            .join(Sale, Sale.id == SaleProduct.sale_id)
-            .where(Product.id.in_(ids), Sale.status == SaleStatus.DONE)
+            .where(Product.id.in_(ids))
         )
         if company_id:
-            query = query.where(Product.company_id == company_id)
+            query_sale = query_sale.where(Product.company_id == company_id)
 
-        result = await self.session.execute(query)
-        product_names = list(set(result.scalars().all()))
+        result_sale = await self.session.execute(query_sale)
+        product_names = list(set(result_sale.scalars().all()))
 
         if product_names:
             raise HTTPException(
                 status_code=400,
                 detail={"error": "errorHasDoneSales", "products": product_names},
+            )
+
+        query_stock = (
+            select(Product.name)
+            .join(StockEntryProduct, StockEntryProduct.product_id == Product.id)
+            .where(Product.id.in_(ids))
+        )
+        if company_id:
+            query_stock = query_stock.where(Product.company_id == company_id)
+
+        result_stock = await self.session.execute(query_stock)
+        product_names_stock = list(set(result_stock.scalars().all()))
+
+        if product_names_stock:
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "errorHasStockEntries", "products": product_names_stock},
             )
 
         query_names = select(Product.name).where(Product.id.in_(ids))

@@ -22,6 +22,8 @@ from app.api.schemas.user import (
     MessageResponse,
     RequestEmailChangeRequest,
     ConfirmEmailChangeRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
 )
 from app.api.schemas.company import (
     SwitchCompanyRequest,
@@ -125,6 +127,68 @@ async def resend_verification(
     return MessageResponse(
         message="If the email is registered and not yet verified, a new confirmation link has been sent."
     )
+
+
+@router.post("/forgot-password", response_model=MessageResponse)
+async def forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,
+    service: UserServiceDep,
+    background_tasks: BackgroundTasks,
+):
+    client_ip = request.client.host if request.client else "unknown"
+    email_clean = body.email.lower().strip()
+    allowed = await redis_db.check_rate_limit(
+        f"rate_limit:forgot_password:{client_ip}:{email_clean}",
+        max_requests=5,
+        window_seconds=300,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "errorRateLimitExceeded",
+                "message": "Too many password reset requests. Please wait before trying again.",
+            },
+        )
+
+    user, token = await service.request_password_reset(body.email)
+    if user and token:
+        background_tasks.add_task(
+            EmailService.send_password_reset_email,
+            email=user.email,
+            name=user.name,
+            token=token,
+        )
+
+    return MessageResponse(
+        message="If the email is registered, instructions to reset your password have been sent."
+    )
+
+
+@router.post("/reset-password", response_model=MessageResponse)
+async def reset_password(
+    request: Request,
+    body: ResetPasswordRequest,
+    service: UserServiceDep,
+):
+    client_ip = request.client.host if request.client else "unknown"
+    allowed = await redis_db.check_rate_limit(
+        f"rate_limit:reset_password:{client_ip}",
+        max_requests=10,
+        window_seconds=300,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "errorRateLimitExceeded",
+                "message": "Too many reset attempts. Please wait before trying again.",
+            },
+        )
+
+    await service.reset_password(body.token, body.new_password)
+    return MessageResponse(message="Password reset successfully.")
 
 
 @router.post("/login", response_model=TokenResponse)

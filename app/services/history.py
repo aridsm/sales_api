@@ -63,6 +63,7 @@ class HistoryService(BaseService[History]):
                 History,
                 User.name.label("created_by_name"),
                 User.email.label("created_by_email"),
+                User.avatar_url.label("created_by_avatar_url"),
             )
             .outerjoin(User, History.created_by == User.id)
             .where(History.company_id == parsed_company_id)

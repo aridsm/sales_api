@@ -1,10 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from sqlalchemy import func
+from sqlalchemy import func, case
 from app.database.models.sale import Sale
+from app.database.models.sale_product import SaleProduct
+from app.database.models.product import Product
+from app.database.models.category import Category
 from app.database.models.other_expense import OtherExpense
 from app.database.models.stock_entry import StockEntry
-from app.api.schemas.dashboard import FrequencyEnum, ChartItem
+from app.api.schemas.dashboard import FrequencyEnum, ChartItem, TopProductItem
 from app.enums.sale import SaleStatus
 from app.enums.stock_entry import StockEntryStatus
 import uuid
@@ -243,3 +246,62 @@ class DashboardService:
             "revenue": revenue,
             "expenses": expenses,
         }
+
+    async def get_top_products(
+        self,
+        company_id: str,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        limit: int = 5,
+    ) -> list[TopProductItem]:
+        item_gross = SaleProduct.quantity * SaleProduct.unit_price
+        sale_subtotal = Sale.total + func.coalesce(Sale.discount, 0.0)
+        net_revenue_expr = case(
+            (
+                sale_subtotal > 0,
+                item_gross * (Sale.total / sale_subtotal),
+            ),
+            else_=0.0,
+        )
+
+        query = (
+            select(
+                Product.id.label("product_id"),
+                Product.name.label("product_name"),
+                Category.name.label("category_name"),
+                Category.color.label("category_color"),
+                func.sum(SaleProduct.quantity).label("quantity_sold"),
+                func.sum(net_revenue_expr).label("total_revenue"),
+            )
+            .join(SaleProduct, SaleProduct.product_id == Product.id)
+            .join(Sale, Sale.id == SaleProduct.sale_id)
+            .outerjoin(Category, Category.id == Product.category_id)
+            .where(
+                Sale.company_id == uuid.UUID(company_id),
+                Sale.status == SaleStatus.DONE,
+            )
+        )
+        if start_date:
+            query = query.where(Sale.date >= start_date)
+        if end_date:
+            query = query.where(Sale.date <= end_date)
+
+        query = (
+            query.group_by(Product.id, Product.name, Category.name, Category.color)
+            .order_by(func.sum(SaleProduct.quantity).desc())
+            .limit(limit)
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+        return [
+            TopProductItem(
+                product_id=row.product_id,
+                product_name=row.product_name,
+                category_name=row.category_name or "Sem categoria",
+                category_color=row.category_color,
+                quantity_sold=int(row.quantity_sold or 0),
+                total_revenue=round(float(row.total_revenue or 0.0), 2),
+            )
+            for row in rows
+        ]

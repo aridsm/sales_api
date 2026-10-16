@@ -103,7 +103,11 @@ async def create_stock_entry(
     service: StockEntryServiceDep,
 ):
     return await service.create_entry_with_products(
-        body.products, body.date, user_id=user.id, company_id=user.company_id
+        body.products,
+        body.date,
+        user_id=user.id,
+        company_id=user.company_id,
+        discount=body.discount,
     )
 
 
@@ -122,7 +126,9 @@ async def delete_bulk_stock_entries(
     user: CanEditDep,
     service: StockEntryServiceDep,
 ):
-    await service.delete_bulk(body.ids, company_id=str(user.company_id))
+    await service.delete_bulk(
+        body.ids, company_id=str(user.company_id), user_id=user.id
+    )
 
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -131,4 +137,4 @@ async def delete_stock_entry(
     user: CanEditDep,
     service: StockEntryServiceDep,
 ):
-    await service.delete(id, company_id=str(user.company_id))
+    await service.delete(id, company_id=str(user.company_id), user_id=user.id)

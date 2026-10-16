@@ -22,6 +22,7 @@ class StockEntry(SQLModel, table=True):
         default=StockEntryStatus.OPEN, nullable=False, index=True
     )
     total: float = Field(default=0, nullable=False)
+    discount: float = Field(default=0.0, nullable=False)
     date: datetime = Field(nullable=False, sa_type=DateTime(timezone=True), index=True)
     user_id: uuid.UUID = Field(foreign_key="users.id", nullable=False, index=True)
     created_by: uuid.UUID | None = Field(

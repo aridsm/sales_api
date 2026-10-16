@@ -9,7 +9,7 @@ from app.database.models.product import Product
 from app.database.models.user import User
 from app.api.schemas.sale import SaleProductItem
 from app.enums.sale import SaleStatus
-from sqlalchemy import Select, func
+from sqlalchemy import Select, func, delete
 from typing import Any
 from datetime import datetime
 from app.services.history import HistoryService
@@ -28,11 +28,12 @@ class SaleService(BaseService[Sale]):
                 func.count(SaleProduct.id).label("items_count"),
                 User.name.label("created_by_name"),
                 User.email.label("created_by_email"),
+                User.avatar_url.label("created_by_avatar_url"),
             )
             .outerjoin(SaleProduct, Sale.id == SaleProduct.sale_id)
             .outerjoin(User, Sale.created_by == User.id)
             .where(Sale.company_id == company_id)
-            .group_by(Sale.id, User.name, User.email)
+            .group_by(Sale.id, User.name, User.email, User.avatar_url)
         )
 
     async def get_all(
@@ -70,6 +71,7 @@ class SaleService(BaseService[Sale]):
         sale_dict["items_count"] = row.get("items_count", 0)
         sale_dict["created_by_name"] = row.get("created_by_name")
         sale_dict["created_by_email"] = row.get("created_by_email")
+        sale_dict["created_by_avatar_url"] = row.get("created_by_avatar_url")
         return sale_dict
 
     async def create_sale_with_products(
@@ -78,6 +80,7 @@ class SaleService(BaseService[Sale]):
         date: datetime,
         user_id: uuid.UUID,
         company_id: uuid.UUID,
+        discount: float = 0.0,
     ) -> Sale:
         product_quantities: dict[uuid.UUID, int] = {}
         for item in items:
@@ -112,9 +115,10 @@ class SaleService(BaseService[Sale]):
                     },
                 )
 
-        total = sum(
+        subtotal = sum(
             products[pid].price * qty for pid, qty in product_quantities.items()
         )
+        total = max(0.0, subtotal - discount)
 
         sale = Sale(
             user_id=user_id,
@@ -122,6 +126,7 @@ class SaleService(BaseService[Sale]):
             company_id=company_id,
             status=SaleStatus.DONE,
             total=total,
+            discount=discount,
             date=date,
         )
         self.session.add(sale)
@@ -150,7 +155,7 @@ class SaleService(BaseService[Sale]):
             entity_type=EntityType.SALE,
             entity_id=sale.id,
             description=f"Venda #{sale.code} registrada no valor de R$ {f'{total:.2f}'.replace('.', ',')}.",
-            details={"total": total, "items_count": len(product_ids)},
+            details={"total": total, "discount": discount, "items_count": len(product_ids)},
         )
 
         await self.session.commit()
@@ -202,3 +207,62 @@ class SaleService(BaseService[Sale]):
         await self.session.refresh(sale)
 
         return await self.get_by_id(sale.id, company_id=company_id)
+
+    async def delete(
+        self,
+        id: uuid.UUID,
+        company_id: uuid.UUID | str | None = None,
+        user_id: uuid.UUID | str | None = None,
+    ):
+        sale = await self.get_by_id(id, company_id=company_id)
+        if sale.status != SaleStatus.CANCELED:
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "errorSaleMustBeCanceledBeforeDeletion"},
+            )
+
+        self.history.log_action(
+            user_id=user_id,
+            company_id=company_id,
+            action_type=ActionType.DELETE,
+            entity_type=EntityType.SALE,
+            entity_id=id,
+            description=f"Venda #{sale.code} excluída.",
+        )
+
+        await self.session.execute(
+            delete(SaleProduct).where(SaleProduct.sale_id == id)
+        )
+        await super().delete(id, company_id=company_id, user_id=user_id)
+
+    async def delete_bulk(
+        self,
+        ids: list[uuid.UUID],
+        company_id: uuid.UUID | str | None = None,
+        user_id: uuid.UUID | str | None = None,
+    ):
+        query = select(Sale).where(Sale.id.in_(ids))
+        if company_id:
+            query = query.where(Sale.company_id == company_id)
+        res = await self.session.execute(query)
+        sales = res.scalars().all()
+        for s in sales:
+            if s.status != SaleStatus.CANCELED:
+                raise HTTPException(
+                    status_code=400,
+                    detail={"error": "errorSaleMustBeCanceledBeforeDeletion"},
+                )
+
+        self.history.log_action(
+            user_id=user_id,
+            company_id=company_id,
+            action_type=ActionType.DELETE,
+            entity_type=EntityType.SALE,
+            entity_id=ids[0] if len(ids) == 1 else uuid.uuid4(),
+            description=f"{len(ids)} vendas excluídas.",
+        )
+
+        await self.session.execute(
+            delete(SaleProduct).where(SaleProduct.sale_id.in_(ids))
+        )
+        await super().delete_bulk(ids, company_id=company_id, user_id=user_id)
