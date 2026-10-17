@@ -1,4 +1,4 @@
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.base import BaseService
 from app.database.models.category import Category
@@ -224,14 +224,22 @@ class CategoryService(BaseService[Category]):
             selected_type = "sales"
 
         if selected_type == "sales":
+            item_gross = SaleProduct.unit_price * SaleProduct.quantity
+            sale_subtotal = Sale.total + func.coalesce(Sale.discount, 0.0)
+            net_sale_expr = case(
+                (
+                    sale_subtotal > 0,
+                    item_gross * (Sale.total / sale_subtotal),
+                ),
+                else_=0.0,
+            )
+
             query = (
                 select(
                     Category.id.label("category_id"),
                     Category.name.label("category_name"),
                     Category.color.label("category_color"),
-                    func.sum(SaleProduct.unit_price * SaleProduct.quantity).label(
-                        "value"
-                    ),
+                    func.sum(net_sale_expr).label("value"),
                 )
                 .join(Product, Product.category_id == Category.id)
                 .join(SaleProduct, SaleProduct.product_id == Product.id)
@@ -241,9 +249,7 @@ class CategoryService(BaseService[Category]):
                     Sale.status == SaleStatus.DONE,
                 )
                 .group_by(Category.id, Category.name, Category.color)
-                .order_by(
-                    func.sum(SaleProduct.unit_price * SaleProduct.quantity).desc()
-                )
+                .order_by(func.sum(net_sale_expr).desc())
             )
 
             if start_created_at:
@@ -251,14 +257,22 @@ class CategoryService(BaseService[Category]):
             if end_created_at:
                 query = query.where(Sale.date <= end_created_at)
         elif selected_type == "stock_entries":
+            item_gross = StockEntryProduct.unit_price * StockEntryProduct.quantity
+            entry_subtotal = StockEntry.total + func.coalesce(StockEntry.discount, 0.0)
+            net_entry_expr = case(
+                (
+                    entry_subtotal > 0,
+                    item_gross * (StockEntry.total / entry_subtotal),
+                ),
+                else_=0.0,
+            )
+
             query = (
                 select(
                     Category.id.label("category_id"),
                     Category.name.label("category_name"),
                     Category.color.label("category_color"),
-                    func.sum(
-                        StockEntryProduct.unit_price * StockEntryProduct.quantity
-                    ).label("value"),
+                    func.sum(net_entry_expr).label("value"),
                 )
                 .join(Product, Product.category_id == Category.id)
                 .join(StockEntryProduct, StockEntryProduct.product_id == Product.id)
@@ -268,11 +282,7 @@ class CategoryService(BaseService[Category]):
                     StockEntry.status == StockEntryStatus.OPEN,
                 )
                 .group_by(Category.id, Category.name, Category.color)
-                .order_by(
-                    func.sum(
-                        StockEntryProduct.unit_price * StockEntryProduct.quantity
-                    ).desc()
-                )
+                .order_by(func.sum(net_entry_expr).desc())
             )
 
             if start_created_at:
@@ -306,7 +316,7 @@ class CategoryService(BaseService[Category]):
         amounts = []
         total = 0.0
         for row in rows:
-            val = float(row["value"]) if row["value"] is not None else 0.0
+            val = round(float(row["value"]), 2) if row["value"] is not None else 0.0
             total += val
             amounts.append(
                 {
@@ -317,9 +327,11 @@ class CategoryService(BaseService[Category]):
                 }
             )
 
+        total = round(total, 2)
+
         if len(amounts) > 5:
             top_amounts = amounts[:5]
-            others_value = sum(item["value"] for item in amounts[5:])
+            others_value = round(sum(item["value"] for item in amounts[5:]), 2)
             if others_value > 0:
                 top_amounts.append(
                     {
@@ -332,3 +344,4 @@ class CategoryService(BaseService[Category]):
             amounts = top_amounts
 
         return {"items": amounts, "total": total}
+

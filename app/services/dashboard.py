@@ -288,7 +288,7 @@ class DashboardService:
 
         query = (
             query.group_by(Product.id, Product.name, Category.name, Category.color)
-            .order_by(func.sum(SaleProduct.quantity).desc())
+            .order_by(func.sum(net_revenue_expr).desc())
             .limit(limit)
         )
 

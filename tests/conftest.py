@@ -14,7 +14,9 @@ import uuid
 os.environ["DB_HOST"] = os.environ.get("DB_TEST_HOST", "localhost")
 os.environ["DB_PORT"] = os.environ.get("DB_TEST_PORT", "5433")
 os.environ["DB_NAME"] = os.environ.get("DB_TEST_NAME", "sales_api_test")
-os.environ["REDIS_HOST"] = os.environ.get("REDIS_TEST_HOST", "localhost")
+os.environ["REDIS_HOST"] = os.environ.get(
+    "REDIS_TEST_HOST", os.environ.get("REDIS_HOST", "localhost")
+)
 
 from app.main import app
 from app.config import settings
@@ -37,8 +39,9 @@ async def setup_db():
         await conn.run_sync(SQLModel.metadata.create_all)
 
 @pytest_asyncio.fixture
-async def session() -> AsyncSession:
-    return async_session_factory_test()
+async def session() -> AsyncGenerator[AsyncSession, None]:
+    async with async_session_factory_test() as s:
+        yield s
 
 @pytest_asyncio.fixture
 async def test_user(session: AsyncSession):

@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001"
 
     RESEND_API_KEY: str = ""
-    EMAIL_FROM: str = "Sales App <onboarding@resend.dev>"
+    EMAIL_FROM: str = "SalesApp <onboarding@resend.dev>"
     FRONTEND_URL: str = "http://localhost:3000"
     EMAIL_VERIFICATION_EXPIRE_HOURS: int = 24
 

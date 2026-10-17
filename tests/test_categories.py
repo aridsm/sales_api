@@ -149,16 +149,18 @@ async def test_get_categories_amounts(client: AsyncClient, test_user):
     assert prod_res.status_code == 201
     prod_id = prod_res.json()["id"]
 
-    # 3. Create a sale
+    # 3. Create a sale (subtotal = 2 * 25.0 = 50.0, discount = 10.0 -> net = 40.0)
     sale_res = await client.post("/sales/", json={
         "date": now_iso,
+        "discount": 10.0,
         "products": [{"product_id": prod_id, "quantity": 2}]
     })
     assert sale_res.status_code == 201
 
-    # 4. Create stock entry
+    # 4. Create stock entry (subtotal = 10 * 15.0 = 150.0, discount = 30.0 -> net = 120.0)
     stock_res = await client.post("/stock_entries/", json={
         "date": now_iso,
+        "discount": 30.0,
         "products": [{"product_id": prod_id, "quantity": 10, "unit_price": 15.0}]
     })
     assert stock_res.status_code == 201
@@ -176,21 +178,23 @@ async def test_get_categories_amounts(client: AsyncClient, test_user):
     })
     assert exp_res.status_code == 201
 
-    # Test sales amounts
+    # Test sales amounts (should reflect discount: 50.0 - 10.0 = 40.0)
     res_sales = await client.get("/categories/amounts", params={"type": "sales", "start_created_at": now_iso})
     assert res_sales.status_code == 200, f"Error on sales: {res_sales.text}"
     data_sales = res_sales.json()
     assert "items" in data_sales
     assert len(data_sales["items"]) >= 1
-    assert data_sales["total"] == 50.0
+    assert data_sales["total"] == 40.0
+    assert data_sales["items"][0]["value"] == 40.0
 
-    # Test stock_entries amounts
+    # Test stock_entries amounts (should reflect discount: 150.0 - 30.0 = 120.0)
     res_stock = await client.get("/categories/amounts", params={"type": "stock_entries", "start_created_at": now_iso})
     assert res_stock.status_code == 200, f"Error on stock_entries: {res_stock.text}"
     data_stock = res_stock.json()
     assert "items" in data_stock
     assert len(data_stock["items"]) >= 1
-    assert data_stock["total"] == 150.0
+    assert data_stock["total"] == 120.0
+    assert data_stock["items"][0]["value"] == 120.0
 
     # Test other_expenses amounts
     res_expenses = await client.get("/categories/amounts", params={"type": "other_expenses", "start_created_at": now_iso})
@@ -199,3 +203,4 @@ async def test_get_categories_amounts(client: AsyncClient, test_user):
     assert "items" in data_expenses
     assert len(data_expenses["items"]) >= 1
     assert data_expenses["total"] == 80.0
+
