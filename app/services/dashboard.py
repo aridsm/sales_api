@@ -7,7 +7,12 @@ from app.database.models.product import Product
 from app.database.models.category import Category
 from app.database.models.other_expense import OtherExpense
 from app.database.models.stock_entry import StockEntry
-from app.api.schemas.dashboard import FrequencyEnum, ChartItem, TopProductItem
+from app.api.schemas.dashboard import (
+    FrequencyEnum,
+    ChartItem,
+    TopProductItem,
+    TopProductsSortBy,
+)
 from app.enums.sale import SaleStatus
 from app.enums.stock_entry import StockEntryStatus
 import uuid
@@ -252,7 +257,8 @@ class DashboardService:
         company_id: str,
         start_date: datetime | None = None,
         end_date: datetime | None = None,
-        limit: int = 5,
+        limit: int = 15,
+        sort_by: TopProductsSortBy = TopProductsSortBy.quantity,
     ) -> list[TopProductItem]:
         item_gross = SaleProduct.quantity * SaleProduct.unit_price
         sale_subtotal = Sale.total + func.coalesce(Sale.discount, 0.0)
@@ -264,14 +270,17 @@ class DashboardService:
             else_=0.0,
         )
 
+        quantity_sum = func.sum(SaleProduct.quantity)
+        revenue_sum = func.sum(net_revenue_expr)
+
         query = (
             select(
                 Product.id.label("product_id"),
                 Product.name.label("product_name"),
                 Category.name.label("category_name"),
                 Category.color.label("category_color"),
-                func.sum(SaleProduct.quantity).label("quantity_sold"),
-                func.sum(net_revenue_expr).label("total_revenue"),
+                quantity_sum.label("quantity_sold"),
+                revenue_sum.label("total_revenue"),
             )
             .join(SaleProduct, SaleProduct.product_id == Product.id)
             .join(Sale, Sale.id == SaleProduct.sale_id)
@@ -286,9 +295,15 @@ class DashboardService:
         if end_date:
             query = query.where(Sale.date <= end_date)
 
+        order_columns = (
+            (revenue_sum.desc(), quantity_sum.desc())
+            if sort_by == TopProductsSortBy.revenue
+            else (quantity_sum.desc(), revenue_sum.desc())
+        )
+
         query = (
             query.group_by(Product.id, Product.name, Category.name, Category.color)
-            .order_by(func.sum(net_revenue_expr).desc())
+            .order_by(*order_columns)
             .limit(limit)
         )
 
@@ -305,3 +320,4 @@ class DashboardService:
             )
             for row in rows
         ]
+

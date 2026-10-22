@@ -21,7 +21,7 @@ async def test_dashboard_top_products(client: AsyncClient, test_user):
         json={
             "name": "Prod A",
             "category_id": category_id,
-            "price": 20.0,
+            "price": 50.0,
             "stock_amount": 50,
         },
     )
@@ -38,7 +38,7 @@ async def test_dashboard_top_products(client: AsyncClient, test_user):
     )
     prod2_id = prod2_res.json()["id"]
 
-    # 3. Create sales: Prod A gets 3 units, Prod B gets 10 units
+    # 3. Create sales: Prod A gets 3 units (revenue 150), Prod B gets 10 units (revenue 100)
     sale1_res = await client.post(
         "/sales/",
         json={
@@ -57,8 +57,8 @@ async def test_dashboard_top_products(client: AsyncClient, test_user):
     )
     assert sale2_res.status_code == 201
 
-    # 4. Query top products
-    top_res = await client.get("/dashboard/top-products?limit=5")
+    # 4. Query top products (default sort_by=quantity)
+    top_res = await client.get("/dashboard/top-products")
     assert top_res.status_code == 200
     top_data = top_res.json()
     assert len(top_data) == 2
@@ -72,7 +72,20 @@ async def test_dashboard_top_products(client: AsyncClient, test_user):
 
     assert top_data[1]["product_name"] == "Prod A"
     assert top_data[1]["quantity_sold"] == 3
-    assert top_data[1]["total_revenue"] == 60.0
+    assert top_data[1]["total_revenue"] == 150.0
+
+    # 5. Query top products sorted by revenue
+    top_rev_res = await client.get("/dashboard/top-products?sort_by=revenue")
+    assert top_rev_res.status_code == 200
+    top_rev_data = top_rev_res.json()
+    assert len(top_rev_data) == 2
+
+    # Prod A should be first because total_revenue is 150.0 > 100.0
+    assert top_rev_data[0]["product_name"] == "Prod A"
+    assert top_rev_data[0]["total_revenue"] == 150.0
+    assert top_rev_data[1]["product_name"] == "Prod B"
+    assert top_rev_data[1]["total_revenue"] == 100.0
+
 
 
 @pytest.mark.asyncio

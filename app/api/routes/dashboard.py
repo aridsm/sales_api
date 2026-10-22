@@ -1,6 +1,12 @@
 from fastapi import APIRouter, Query
 from app.api.dependencies import CanViewDep, DashboardServiceDep
-from app.api.schemas.dashboard import ChartItem, FrequencyEnum, BudgetResponse, TopProductItem
+from app.api.schemas.dashboard import (
+    ChartItem,
+    FrequencyEnum,
+    BudgetResponse,
+    TopProductItem,
+    TopProductsSortBy,
+)
 from datetime import datetime
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -47,11 +53,14 @@ async def get_top_products(
     service: DashboardServiceDep,
     start_date: datetime | None = Query(None),
     end_date: datetime | None = Query(None),
-    limit: int = Query(5, ge=1, le=50),
+    limit: int = Query(15, ge=1, le=50),
+    sort_by: TopProductsSortBy = Query(TopProductsSortBy.quantity),
 ):
     return await service.get_top_products(
         company_id=str(user.company_id),
         start_date=start_date,
         end_date=end_date,
         limit=limit,
+        sort_by=sort_by,
     )
+

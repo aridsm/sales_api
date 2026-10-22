@@ -20,6 +20,10 @@ class BudgetResponse(BaseModel):
     revenue: float
     expenses: float
 
+class TopProductsSortBy(str, Enum):
+    quantity = "quantity"
+    revenue = "revenue"
+
 class TopProductItem(BaseModel):
     product_id: UUID
     product_name: str
@@ -27,4 +31,5 @@ class TopProductItem(BaseModel):
     category_color: Optional[str] = None
     quantity_sold: int
     total_revenue: float
+
 

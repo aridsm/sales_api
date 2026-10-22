@@ -2,6 +2,8 @@
 
 API RESTful assíncrona e servidor WebSocket para o **SalesApp** — sistema completo de gestão de vendas, controle de estoque, despesas e métricas financeiras multi-empresa (*multi-tenant*). Desenvolvida com **FastAPI**, **SQLModel / SQLAlchemy 2.0 (Async)**, **PostgreSQL 16**, **Redis 7** e **Alembic**.
 
+> 💻 **Repositório Front-end (Web):** [`sales_web`](https://github.com/aridsm/sales_web) — Interface desenvolvida com Next.js, React 19, TypeScript e Tailwind CSS 4.
+
 ---
 
 ## ✨ Principais Funcionalidades
