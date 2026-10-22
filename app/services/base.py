@@ -186,7 +186,12 @@ class BaseService(Generic[T]):
         else:
             body = diff.model_dump(exclude_unset=True)
         body.pop("created_by", None)
+
+        table_columns = getattr(getattr(self.model, "__table__", None), "columns", {})
         for key, value in body.items():
+            col = table_columns.get(key)
+            if value is None and col is not None and not col.nullable:
+                continue
             setattr(item_db, key, value)
 
         await self.session.commit()

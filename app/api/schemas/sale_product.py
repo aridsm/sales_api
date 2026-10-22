@@ -8,12 +8,12 @@ class SaleProductCreate(BaseModel):
     sale_id: UUID
     product_id: UUID
     quantity: int = Field(..., gt=0)
-    unit_price: float = Field(..., gt=0)
+    unit_price: float = Field(..., ge=0)
 
 
 class SaleProductUpdate(BaseModel):
     quantity: Optional[int] = Field(None, gt=0)
-    unit_price: Optional[float] = Field(None, gt=0)
+    unit_price: Optional[float] = Field(None, ge=0)
 
 
 class SaleProductResponse(BaseModel):

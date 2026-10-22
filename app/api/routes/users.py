@@ -239,12 +239,13 @@ async def update_me(
     session: SessionDependency,
 ):
     data = body.model_dump(exclude_unset=True)
+    has_job_title = "job_title" in data
     job_title = data.pop("job_title", None)
 
     updated_user = await service.update(user.id, data)
 
     final_job_title = user.job_title
-    if job_title is not None and user.company_id:
+    if has_job_title and user.company_id:
         if user.permission == CompanyPermission.ADMIN:
             cu_res = await session.execute(
                 select(CompanyUser).where(

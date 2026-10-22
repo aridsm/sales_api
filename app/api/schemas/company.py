@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from datetime import datetime
 from uuid import UUID
 from typing import Optional
@@ -52,6 +52,27 @@ class CompanyUpdate(BaseModel):
     city: Optional[str] = None
     state: Optional[str] = None
 
+    @field_validator(
+        "logo_url",
+        "document",
+        "email",
+        "phone",
+        "website",
+        "zip_code",
+        "street",
+        "number",
+        "complement",
+        "neighborhood",
+        "city",
+        "state",
+        mode="before",
+    )
+    @classmethod
+    def empty_str_to_none(cls, v):
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
 
 class CompanyResponse(CompanyBase):
     id: UUID
@@ -68,6 +89,13 @@ class CompanyUserUpdate(BaseModel):
     permission: Optional[CompanyPermission] = None
     job_title: Optional[str] = None
     user_job_title: Optional[str] = None
+
+    @field_validator("job_title", "user_job_title", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, v):
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
 
 class CompanyUserResponse(BaseModel):

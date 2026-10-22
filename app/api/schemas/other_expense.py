@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class OtherExpenseBase(BaseModel):
@@ -13,9 +13,13 @@ class OtherExpenseBase(BaseModel):
     category_id: UUID
 
 
-
 class OtherExpenseCreate(OtherExpenseBase):
-    pass
+    @field_validator("description", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, v):
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
 
 class OtherExpenseUpdate(BaseModel):
@@ -25,6 +29,12 @@ class OtherExpenseUpdate(BaseModel):
     date: Optional[datetime] = Field(None)
     category_id: Optional[UUID] = Field(None)
 
+    @field_validator("description", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, v):
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
 
 class OtherExpenseResponse(OtherExpenseBase):

@@ -118,8 +118,9 @@ class CompanyService:
         company = await self._get_company(company_id)
 
         for key, value in data.items():
-            if value is not None:
-                setattr(company, key, value)
+            if key == "name" and value is None:
+                continue
+            setattr(company, key, value)
 
         await self.session.commit()
         await self.session.refresh(company)

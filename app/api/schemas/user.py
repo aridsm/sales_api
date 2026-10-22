@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from datetime import datetime
 from uuid import UUID
 from typing import Optional
@@ -39,6 +39,26 @@ class UserUpdate(BaseModel):
     neighborhood: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
+
+    @field_validator(
+        "avatar_url",
+        "phone",
+        "job_title",
+        "document",
+        "zip_code",
+        "street",
+        "number",
+        "complement",
+        "neighborhood",
+        "city",
+        "state",
+        mode="before",
+    )
+    @classmethod
+    def empty_str_to_none(cls, v):
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
 
 class ChangePasswordRequest(BaseModel):
@@ -94,4 +114,3 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str = Field(..., min_length=1)
     new_password: str = Field(..., min_length=6)
-

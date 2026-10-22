@@ -193,9 +193,11 @@ class UserService:
         user = await self.get_by_id(id)
 
         for key, value in data.items():
-            if value is not None:
-                setattr(user, key, value)
+            if key == "name" and value is None:
+                continue
+            setattr(user, key, value)
 
+        user.updated_at = datetime.now(timezone.utc)
         await self.session.commit()
         await self.session.refresh(user)
         return user
@@ -360,4 +362,3 @@ class UserService:
         await self.session.refresh(user)
 
         await redis_db.delete_key(key)
-
